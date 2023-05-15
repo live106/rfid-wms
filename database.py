@@ -1,45 +1,136 @@
 import sqlite3
 import time
 
-# Define a function to connect to sqlite database and create a cursor object
-def connect_db():
-    conn = sqlite3.connect("warehouse.db")
-    cursor = conn.cursor()
-    return conn, cursor
-
-# Define a function to create a table if it does not exist with columns for barcode, product name, quantity and timestamp
 def create_table():
-    conn, cursor = connect_db()
-    cursor.execute("CREATE TABLE IF NOT EXISTS in_storage (barcode TEXT PRIMARY KEY, product TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, timestamp INTEGER NOT NULL)")
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inbounds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            barcode TEXT,
+            name TEXT,
+            quantity INTEGER,
+            timestamp INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            barcode TEXT,
+            name TEXT
+        )
+    """)    
     conn.commit()
     conn.close()
 
-# Define a function to insert data into the table using parameterized query
-def insert_data(barcode, product, quantity):
-    conn, cursor = connect_db()
-    timestamp = int(time.time())
-    cursor.execute("INSERT INTO in_storage (barcode, product, quantity, timestamp) VALUES (?, ?, ?, ?)", (barcode, product, quantity, timestamp))
+def add_inbound(barcode, name, quantity, timestamp):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    timestamp = int(round(time.time() * 1000))
+    cursor.execute("INSERT INTO inbounds (barcode, name, quantity, timestamp) VALUES (?, ?, ?, ?)", (barcode, name, quantity, timestamp))
     conn.commit()
     conn.close()
 
-# Define a function to delete data from the table using parameterized query
-def delete_data(barcode):
-    conn, cursor = connect_db()
-    cursor.execute("DELETE FROM in_storage WHERE barcode = ?", (barcode,))
+def delete_inbound(barcode):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM inbounds WHERE barcode = ?", (barcode,))
     conn.commit()
     conn.close()
 
-# Define a function to delete data from the table that are older than 2 days
+def update_inbound(barcode, quantity):
+    conn = sqlite3.connect("rfid_wms.db")
+    c = conn.cursor()
+    c.execute("UPDATE inbounds SET quantity = ? WHERE barcode = ?", (quantity, barcode))
+    conn.commit()
+    conn.close()    
+
 def delete_old_data():
-    conn, cursor = connect_db()
-    
-    # Get the current timestamp in seconds
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
     now = int(time.time())
-    
-    # Calculate the timestamp of 2 days ago
     two_days_ago = now - 2 * 24 * 60 * 60
-    
-    # Delete the data that have timestamp less than two_days_ago
-    cursor.execute("DELETE FROM in_storage WHERE timestamp < ?", (two_days_ago,))
+    cursor.execute("DELETE FROM inbounds WHERE timestamp < ?", (two_days_ago,))
     conn.commit()
     conn.close()
+
+def get_inbound_name(barcode):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM inbounds WHERE barcode = ?", (barcode,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[0]
+    else:
+        return None
+
+def get_inbound_barcode(name):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT barcode FROM inbounds WHERE name = ?", (name,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[0]
+    else:
+        return None
+
+def get_inbounds():
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT barcode, name, quantity, timestamp FROM inbounds")
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+def add_product(barcode, name):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO products (barcode, name) VALUES (?, ?)", (barcode, name))
+    conn.commit()
+    conn.close()
+
+def delete_product(barcode):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM products WHERE barcode = ?", (barcode,))
+    conn.commit()
+    conn.close()
+
+def update_product(barcode, name):
+    conn = sqlite3.connect("rfid_wms.db")
+    c = conn.cursor()
+    c.execute("UPDATE products SET name = ? WHERE barcode = ?", (name, barcode))
+    conn.commit()
+    conn.close()    
+
+def get_product_name(barcode):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM products WHERE barcode = ?", (barcode,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[0]
+    else:
+        return None
+
+def get_product_barcode(name):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT barcode FROM products WHERE name = ?", (name,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[0]
+    else:
+        return None
+
+def get_products():
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT barcode, name FROM products")
+    results = cursor.fetchall()
+    conn.close()
+    return results    
