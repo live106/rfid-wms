@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget
 from PyQt5.QtCore import Qt, QSize
+import qdarktheme
+
 from in_storage import InStorage
 from out_storage import OutStorage
 from system_config import SystemConfig
@@ -8,29 +10,22 @@ class MainWindow(QWidget):
         super().__init__()
         self.initUI()
     def initUI(self):
-        self.setWindowTitle("Warehouse Management System")
-        # Set the window size to 1920x1080
-        # self.resize(1920, 1080)
-        # # Center the window on the screen
-        # self.centerOnScreen()      
-        self.showMaximized()
-        # Set the window to full screen
-        # self.showFullScreen()
+        self.setWindowTitle("RFDI WMS 1.0")
         # Create a menu list on the left
         self.menu_list = QListWidget()
         # Set the menu width to 20% of the window width
-        self.menu_list.setFixedWidth(int(self.width() * 0.2))
-        self.menu_list.setMinimumHeight(60 * self.menu_list.count())
+        self.menu_list.setFixedWidth(100)
+        self.menu_list.setMinimumHeight(40 * self.menu_list.count())
         menu_item1 = QListWidgetItem("入库管理")
-        menu_item1.setSizeHint(QSize(0, 60))
+        menu_item1.setSizeHint(QSize(0, 40))
         menu_item1.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item1.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
         menu_item2 = QListWidgetItem("出库管理")
-        menu_item2.setSizeHint(QSize(0, 60))
+        menu_item2.setSizeHint(QSize(0, 40))
         menu_item2.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item2.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
         menu_item3 = QListWidgetItem("系统配置")
-        menu_item3.setSizeHint(QSize(0, 60))
+        menu_item3.setSizeHint(QSize(0, 40))
         menu_item3.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item3.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
         self.menu_list.addItem(menu_item1)
@@ -55,6 +50,15 @@ class MainWindow(QWidget):
         vbox = QVBoxLayout()
         vbox.addLayout(hbox)
         self.setLayout(vbox)
+
+        # Set the window size to 1920x1080
+        # self.resize(1920, 1080)
+        # # Center the window on the screen
+        # self.centerOnScreen()      
+        self.showMaximized()
+        # Set the window to full screen
+        # self.showFullScreen()
+        
      # Change the subpage according to the menu item text
     def changePage(self, current, previous):
         if current.text() == "入库管理":
@@ -88,7 +92,24 @@ class MainWindow(QWidget):
         self.centerOnScreen()            
             
 if __name__ == '__main__':
+    # enable_hi_dpi() must be called before the instantiation of QApplication.
+    qdarktheme.enable_hi_dpi()
     app = QApplication([])
+    # Apply the complete dark theme to your Qt App.
+    # qdarktheme.setup_theme()
+    qdarktheme.setup_theme("auto")
+    # qdarktheme.setup_theme("light")
+
+    # Customize accent color. https://pyqtdarktheme.readthedocs.io/en/latest/reference/theme_color.html
+    # qdarktheme.setup_theme(custom_colors={"primary": "#D0BCFF"})
+
+    # Default is "rounded".
+    # stylesheet = qdarktheme.setup_theme(corner_shape="sharp")
+
+    # You can also only load QPalette and stylesheet. qdarktheme.setup_theme uses the following functions internally.
+    # palette = qdarktheme.load_palette(theme="dark")
+    # stylesheet = qdarktheme.load_stylesheet(theme="dark")
+
     win = MainWindow()
     win.show()
     app.exec_()
