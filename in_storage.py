@@ -32,8 +32,9 @@ class InStorage(QWidget):
 
     def initUI(self):
         # Create a subpage for 入库管理
-        self.label = QLabel("入库管理")
-        self.label.setFont(QtGui.QFont("Arial", 20))
+        # self.label = QLabel("入库管理")
+        # self.label.setFixedHeight(30)
+        # self.label.setFont(QtGui.QFont("Arial", 20, QtGui.QFont.Bold))
         
         # Create a table widget to display some data
         self.table = QTableWidget(0, 6)
@@ -78,7 +79,7 @@ class InStorage(QWidget):
 
         # Set the subpage layout
         vbox = QVBoxLayout()
-        vbox.addWidget(self.label)
+        # vbox.addWidget(self.label)
 
         # Create a horizontal layout to hold the product name input box, the barcode input box, the counter, and the button
         hbox = QHBoxLayout()
@@ -234,7 +235,7 @@ class InStorage(QWidget):
         self.inventory_button.clicked.connect(self.startAsyncInventory)
 
     def getEpcListThread(self):
-        self.epc_list = rfid_utils.async_get_epc_list(self.epc_list, self.inventory_duration_ref)  # call rfid_utils.async_get_epc_list in a new thread
+        rfid_utils.async_get_epc_list(self.epc_list, self.inventory_duration_ref)  # call rfid_utils.async_get_epc_list in a new thread
         self.counter_updated.emit(len(self.epc_list))
         self.stopAsyncInventory()
 
