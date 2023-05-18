@@ -5,12 +5,13 @@ import qdarktheme
 from in_storage import InStorage
 from out_storage import OutStorage
 from system_config import SystemConfig
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.initUI()
     def initUI(self):
-        self.setWindowTitle("RFDI WMS 1.0")
+        self.setWindowTitle("GreenElement RFID WMS 1.0")
         # Create a menu list on the left
         self.menu_list = QListWidget()
         # Set the menu width to 20% of the window width
