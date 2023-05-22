@@ -11,10 +11,11 @@ from enum import Enum
 import database
 import time
 import pyautogui
+import os
 
 class Express(Enum):
-    KURONEKOYAMATO = "kuronekoyamato"
-    SAGAWAEXP = "sagawaexp"
+    KURONEKOYAMATO = "大和运输"
+    SAGAWAEXP = "佐川急便"
 
 def create_express_printer(name):
     config = database.get_express_config(name)
@@ -43,7 +44,6 @@ class ExpressPrinter(abc.ABC):
         # prevent the driver from automatically closing the browser for debugging
         # self.options.add_experimental_option("detach", True)
 
-        self.options.add_experimental_option('prefs', {'download.default_directory': 'D:\\'})
         self.options.add_argument('--enable-print-browser')
         '''
         The --kiosk-printing option is used in the provided code to enable printing in kiosk mode. 
@@ -52,6 +52,19 @@ class ExpressPrinter(abc.ABC):
         '''
         # self.options.add_argument("--kiosk-printing")
         # options.add_argument("--start-maximized")
+
+        self.options.add_argument("--disable-gpu")  # 禁用GPU加速
+        self.options.add_argument("--disable-software-rasterizer")  # 禁用软件光栅化器
+        self.options.add_argument("--disable-dev-shm-usage")  # 禁用/dev/shm
+        self.options.add_argument("--no-sandbox")  # 禁用沙箱
+
+        # 设置默认下载路径
+        self.options.add_experimental_option("prefs", {  
+            "download.default_directory": 'D:\\', 
+            "download.prompt_for_download": False,  
+            "download.directory_upgrade": True,
+            "safebrowsing.enabled": True 
+        })
 
         self.driver = webdriver.Chrome(options=self.options)        
         self.username = username
@@ -104,7 +117,7 @@ class ExpressPrinterK(ExpressPrinter):
                 
                 element = self.driver.execute_script("return document.getElementById('filename');")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
-                element.send_keys(r"E:\Wangyn\个人\Jan\RFID\K0.xlsx")    
+                element.send_keys("./order_for_express.xlsx")    
                 print('set upload file')
                 
                 element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.ID, 'import_start')))
@@ -153,11 +166,12 @@ class ExpressPrinterK(ExpressPrinter):
                 if i < 2:
                     print(f'Retrying in 3 seconds... (attempt {i+1}/3)')
                     time.sleep(3)
-                    self.driver.close()
+                    self.driver.quit()
                     self.driver = webdriver.Chrome(options=self.options)
                     print('Driver reinitialized.')                    
                 else:
                     print('Failed after 3 attempts.')
+                    self.driver.quit()
                     return False
         return True
 
@@ -210,12 +224,21 @@ class ExpressPrinterS(ExpressPrinter):
                 actions.move_to_element(select_element).click().perform()
 
                 option_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'GEE')]/parent::li")))
-                option_element.click()
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", option_element)
+                actions = ActionChains(self.driver)
+                actions.move_to_element(option_element).click().perform()
+                # option_element.click()
                 print('select GEE')
 
                 element = self.driver.execute_script("return document.getElementsByName('files')[0];")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
-                element.send_keys(r"E:\Wangyn\个人\Jan\RFID\K0.xlsx")
+                # 获取当前脚本所在目录
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                # 拼接文件路径
+                file_path = os.path.join(current_dir, "order_for_express.xlsx")
+                # 获取文件的绝对路径
+                absolute_path = os.path.abspath(file_path)                
+                element.send_keys(absolute_path)
                 print('set ファイルを選択 upload file')
 
                 element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '直接取込')]/parent::button")))
@@ -238,7 +261,7 @@ class ExpressPrinterS(ExpressPrinter):
                 print('click F12 for 登録')
                 '''
 
-                time.sleep(3)
+                time.sleep(5)
 
                 element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[@title='全て選択/取消']")))
                 element.click()
@@ -262,7 +285,7 @@ class ExpressPrinterS(ExpressPrinter):
                 print('click F12 for 印刷')
                 '''
 
-                time.sleep(5)
+                time.sleep(10)
 
                 self.driver.quit()
                 
@@ -272,10 +295,11 @@ class ExpressPrinterS(ExpressPrinter):
                 if i < 2:
                     print(f'Retrying in 5 seconds... (attempt {i+1}/3)')
                     time.sleep(3)
-                    self.driver.close()
+                    self.driver.quit()
                     self.driver = webdriver.Chrome(options=self.options)
                     print('Driver reinitialized.')                    
                 else:
                     print('Failed after 3 attempts.')
+                    self.driver.quit()
                     return False
         return True

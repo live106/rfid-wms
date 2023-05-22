@@ -2,11 +2,11 @@ from PyQt5.QtWidgets import QWidget, QComboBox, QVBoxLayout, QLabel, QTableWidge
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5 import QtGui
 import database
-import random
 import time
 from datetime import datetime
-import rfid_utils
-from rfid_utils import stop_async_inventory
+
+import rfid_api
+from rfid_api import stop_async_inventory_event
 import threading
 
 class InStorage(QWidget):
@@ -24,7 +24,7 @@ class InStorage(QWidget):
         self.counter_thread = threading.Thread(target=self.updateCounterThread)
         # self.counter_thread.daemon = True
 
-        # Create a thread to call rfid_utils.get_epc_list
+        # Create a thread to call rfid_api.get_epc_list
         self.rfid_thread = threading.Thread(target=self.getEpcListThread)
         # self.rfid_thread.daemon = True
 
@@ -75,7 +75,6 @@ class InStorage(QWidget):
         self.inventory_button.setFont(QtGui.QFont("Arial", 16))
         self.inventory_button.clicked.connect(self.startAsyncInventory)
         # self.inventory_button.clicked.connect(self.startSyncInventory)
-
 
         # Set the subpage layout
         vbox = QVBoxLayout()
@@ -210,11 +209,11 @@ class InStorage(QWidget):
         print("Counter updated done.")
 
     def startAsyncInventory(self):
-        stop_async_inventory.clear()  # Unset the threading.Event object to resume the inventory process
+        stop_async_inventory_event.clear()  # Unset the threading.Event object to resume the inventory process
         # self.inventory_button.setEnabled(False)
         self.inventory_button.disconnect()
         self.inventory_button.setText(f"结束盘点")  # Add this line to set the text of the inventory_button to "结束盘点"
-        self.inventory_button.clicked.connect(self.stopAsyncInventory)  # Add this line to set the stop_async_inventory value to True when the button is clicked        
+        self.inventory_button.clicked.connect(self.stopAsyncInventory)  # Add this line to set the stop_async_inventory_event value to True when the button is clicked        
         if not self.counter_thread.is_alive():
             self.counter_thread = threading.Thread(target=self.updateCounterThread)
         if not self.rfid_thread.is_alive():
@@ -224,7 +223,7 @@ class InStorage(QWidget):
         self.rfid_thread.start()  # start the rfid_thread        
 
     def stopAsyncInventory(self):
-        stop_async_inventory.set()  # Set the threading.Event object to True to stop the inventory process
+        stop_async_inventory_event.set()  # Set the threading.Event object to True to stop the inventory process
         self.inventoring = False
         self.inventory_duration_ref = [0]
         self.counter_thread.join()
@@ -235,13 +234,13 @@ class InStorage(QWidget):
         self.inventory_button.clicked.connect(self.startAsyncInventory)
 
     def getEpcListThread(self):
-        rfid_utils.async_get_epc_list(self.epc_list, self.inventory_duration_ref)  # call rfid_utils.async_get_epc_list in a new thread
+        rfid_api.async_get_epc_list(self.epc_list, self.inventory_duration_ref)  # call rfid_api.async_get_epc_list in a new thread
         self.counter_updated.emit(len(self.epc_list))
         self.stopAsyncInventory()
 
     def startSyncInventory(self):
         self.inventoring = True
-        self.epc_list = rfid_utils.sync_get_epc_list(self.epc_list)  # call rfid_utils.sync_get_epc_list in a new thread        
+        self.epc_list = rfid_api.sync_get_epc_list(self.epc_list)  # call rfid_api.sync_get_epc_list in a new thread        
         self.counter.display(len(self.epc_list))
         print(f"Counter updated: {len(self.epc_list)}")
         self.inventoring = False

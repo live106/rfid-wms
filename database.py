@@ -68,6 +68,31 @@ def create_table():
         add_express_config(Express.KURONEKOYAMATO.value, '080493385318', 'element06', 'CSTMR_CD', 'CSTMR_PSWD', 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet', 'logged-in', 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet')
     if not get_express_config(Express.SAGAWAEXP.value):
         add_express_config(Express.SAGAWAEXP.value, '0476497727001', 'moal6173', 'user2', 'pass2', 'https://www.e-service.sagawa-exp.co.jp/auth/realms/sc/protocol/openid-connect/auth?response_type=code&scope=openid&client_id=sagawa-exp.co.jp&state=LfFylwnqdxU1SivhUBjX5LwPvPY&redirect_uri=https%3A%2F%2Fwww.e-service.sagawa-exp.co.jp%2Fredirect%2Fredirect_uri&nonce=3sNAU2WZclbg39LBLImJBxTV9ueiHvq_pt4svzzUcK4', 'logged-in', 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet')
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            Type TEXT,
+            JAN TEXT,
+            Expiration TEXT,
+            ZIP TEXT,
+            Address TEXT,
+            Name TEXT,
+            TEL TEXT,
+            Text1 TEXT,
+            Text2 TEXT,
+            D_Date TEXT,
+            D_Time TEXT,
+            ShipperZIP TEXT,
+            ShipperName TEXT,
+            ShipperAddress TEXT,
+            ShipperTel TEXT,
+            CustomerOrderID TEXT,
+            Qty INTEGER,
+            OutboundStatus TEXT DEFAULT 'waiting',
+            ExpressNo TEXT,
+            ExpressTime TEXT,
+            OrderNo TEXT
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -248,10 +273,13 @@ def add_epc(epc, barcode, name, inbound_id, timestamp=None):
 def add_epcs(epc_list, barcode, name, inbound_id, timestamp=None):
     conn = sqlite3.connect("rfid_wms.db")
     cursor = conn.cursor()
+    '''
     if not timestamp:
         timestamp = int(round(time.time() * 1000))
     for epc in epc_list:
         cursor.execute("INSERT INTO epcs (epc, barcode, name, inbound_id, timestamp) VALUES (?, ?, ?, ?, ?)", (epc, barcode, name, inbound_id, timestamp))
+    '''
+    cursor.executemany("INSERT INTO epcs (epc, barcode, name, inbound_id, timestamp) VALUES (?, ?, ?, ?, ?)", epc_list)
     conn.commit()
     conn.close()
 
@@ -303,6 +331,15 @@ def get_epcs(inbound_id):
     results = cursor.fetchall()
     conn.close()
     return results
+
+def get_epc_barcode_counts(epc_list):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    epc_list = list(epc_list)
+    cursor.execute("SELECT barcode, COUNT(*) as quantity FROM epcs WHERE epc IN ({}) GROUP BY barcode".format(','.join('?'*len(epc_list))), epc_list)
+    results = cursor.fetchall()
+    conn.close()
+    return {row[0]: row[1] for row in results}
 
 def add_express_config(name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url):
     conn = sqlite3.connect("rfid_wms.db")
@@ -360,3 +397,106 @@ def get_express_config(name):
         }
     else:
         return None
+
+def add_order(order):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?. ?)
+    """, (order.get('Type', ''), order.get('JAN', ''), order.get('Expiration', ''), order.get('ZIP', ''), order.get('Address', ''), order.get('Name', ''), order.get('TEL', ''), order.get('Text1', ''), order.get('Text2', ''), order.get('D_Date', ''), order.get('D_Time', ''), order.get('ShipperZIP', ''), order.get('ShipperName', ''), order.get('ShipperAddress', ''), order.get('ShipperTel', ''), order.get('CustomerOrderID', ''), order.get('Qty', 0), order.get('OutboundStatus', 'waiting'), order.get('ExpressNo', ''), order.get('ExpressTime', ''), order.get('OrderNo', '')))
+    conn.commit()
+    conn.close()
+
+def add_orders(orders):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    insert_query = """
+        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    insert_values = []
+    for order in orders:
+        insert_values.append((
+            order.get('Type', ''),
+            order.get('JAN', ''),
+            order.get('Expiration', ''),
+            order.get('ZIP', ''),
+            order.get('Address', ''),
+            order.get('Name', ''),
+            order.get('TEL', ''),
+            order.get('Text1', ''),
+            order.get('Text2', ''),
+            order.get('D_Date', ''),
+            order.get('D_Time', ''),
+            order.get('ShipperZIP', ''),
+            order.get('ShipperName', ''),
+            order.get('ShipperAddress', ''),
+            order.get('ShipperTel', ''),
+            order.get('CustomerOrderID', ''),
+            order.get('Qty', 0),
+            order.get('OutboundStatus', 'waiting'),
+            order.get('ExpressNo', ''),
+            order.get('ExpressTime', ''),
+            order.get('OrderNo', '')
+        ))
+    cursor.executemany(insert_query, insert_values)
+    conn.commit()
+    conn.close()    
+
+def delete_order(order_no):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM orders WHERE OrderNo = ?", (order_no,))
+    conn.commit()
+    conn.close()
+
+def update_order(order_no, updates):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+
+    for field, value in updates.items():
+        if value is not None:
+            cursor.execute(f"UPDATE orders SET {field} = ? WHERE OrderNo = ?", (value, order_no))
+
+    conn.commit()
+    conn.close()
+
+def get_orders_by_order_no(order_no):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
+        FROM orders
+        WHERE OrderNo = ?
+    """, (order_no,))
+    results = cursor.fetchall()
+    conn.close()
+
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    return [dict(zip(keys, result)) for result in results]
+
+def get_orders_by_order_nos(order_nos):
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    placeholders = ', '.join(['?'] * len(order_nos))
+    query = f"SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo FROM orders WHERE OrderNo IN ({placeholders})"
+    cursor.execute(query, order_nos)
+    results = cursor.fetchall()
+    conn.close()
+
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    return [dict(zip(keys, result)) for result in results]
+
+def get_orders():
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
+        FROM orders
+    """)
+    results = cursor.fetchall()
+    conn.close()
+
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    return [dict(zip(keys, result)) for result in results]

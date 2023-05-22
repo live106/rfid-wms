@@ -1,10 +1,10 @@
-import http.client,urllib.parse
+import http.client
 import json
 import time
 from database import get_rfid_reader_config
 import threading
 
-stop_async_inventory = threading.Event()  # Define stop_async_inventory as a threading.Event object
+stop_async_inventory_event = threading.Event()  # Define stop_async_inventory_event as a threading.Event object
 
 def call_api(address, port, path, request_params):
     headers = {'Content-Type': 'application/json; charset=utf-8'}
@@ -57,7 +57,7 @@ def async_get_epc_list(epc_list, duration_ref):
 
     current_consecutive_count = 0
     start_time = time.time()
-    while current_consecutive_count < consecutive_count and time.time() - start_time < duration and not stop_async_inventory.is_set():
+    while current_consecutive_count < consecutive_count and time.time() - start_time < duration and not stop_async_inventory_event.is_set():
         try:
             response_data = call_api(address, port, 'getasynctags', {})
             if response_data['err_code'] == 0:
