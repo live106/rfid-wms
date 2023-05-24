@@ -378,6 +378,19 @@ def update_express_config(name, username=None, password=None, username_field_nam
     conn.commit()
     conn.close()
 
+def get_all_express_configs():
+    conn = sqlite3.connect("rfid_wms.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url FROM express_config")
+    result = cursor.fetchall()
+    conn.close()
+    if result:
+        keys = ['name', 'username', 'password', 'username_field_name', 'password_field_name', 'login_url', 'logged_in_element_class', 'home_url']
+        return [dict(zip(keys, row)) for row in result]
+    else:
+        return None
+
+
 def get_express_config(name):
     conn = sqlite3.connect("rfid_wms.db")
     cursor = conn.cursor()

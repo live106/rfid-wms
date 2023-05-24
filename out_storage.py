@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QLineEdit, QComboBox, QHBoxLayout, QTableWidget, QFrame, QFileDialog, QTableWidgetItem, QLCDNumber
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QLineEdit, QComboBox, QHBoxLayout, QTableWidget, QFrame, QFileDialog, QTableWidgetItem, QLCDNumber, QHeaderView
 from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal, QObject
 from PyQt5 import QtGui
 import openpyxl
@@ -140,6 +140,7 @@ class OutStorage(QWidget):
         self.match_table.setColumnCount(5)
         self.match_table.setHorizontalHeaderLabels(["OrderNo", "JAN", "Qty", "CurrentQty", "Matching"])
         self.match_table.setFixedHeight(260)
+        self.match_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
         # Add the separator and second set of buttons and table
         separator = QFrame()
@@ -158,6 +159,7 @@ class OutStorage(QWidget):
         headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
         self.order_table.setColumnCount(len(headers))
         self.order_table.setHorizontalHeaderLabels(headers)
+        self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
         vbox = QVBoxLayout()
         # vbox.addWidget(self.label)
