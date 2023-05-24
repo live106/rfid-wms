@@ -102,7 +102,7 @@ class OutStorage(QWidget):
 
         # Add the top row of buttons and input components
         self.order_input = QLineEdit()
-        self.order_input.setPlaceholderText('Please input OrderNo')
+        self.order_input.setPlaceholderText('Please enter OrderNo')
         self.order_input.setFont(QtGui.QFont("Arial", 16))
         self.order_input.textChanged.connect(self.on_order_input_changed)
 
@@ -288,6 +288,7 @@ class OutStorage(QWidget):
         self.outbound_button.setEnabled(all_match)
 
     def startAsyncInventory(self):
+        self.counter_updated.emit(0)
         stop_async_inventory_event.clear()  # Unset the threading.Event object to resume the inventory process
         # self.inventory_button.setEnabled(False)
         self.inventory_button.disconnect()

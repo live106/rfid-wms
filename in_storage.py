@@ -38,14 +38,14 @@ class InStorage(QWidget):
         
         # Create a table widget to display some data
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["ID", "条形码", "商品名称", "数量", "入库时间", "操作"])
+        self.table.setHorizontalHeaderLabels(["ID", "Barcode", "Product Name", "Quantity", "Inbound Time", "Operations"])
         # self.table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setDefaultSectionSize(30)
 
         # Create a barcode input widget
         self.barcode_input = QComboBox(self)
-        self.barcode_input.setPlaceholderText("请输入条形码")
+        self.barcode_input.setPlaceholderText("Please enter barcode")
         self.barcode_input.setFont(QtGui.QFont("Arial", 16))
         self.barcode_input.setEditable(True)
         # self.barcode_input.setFixedHeight(60) # Add this line to set the height of the barcode input box to 60
@@ -54,7 +54,7 @@ class InStorage(QWidget):
 
         # Create a product name input widget
         self.product_name_input = QComboBox(self)
-        self.product_name_input.setPlaceholderText("请输入商品名称")
+        self.product_name_input.setPlaceholderText("Please enter product name")
         self.product_name_input.setFont(QtGui.QFont("Arial", 16))
         self.product_name_input.setEditable(True)
         # self.product_name_input.setFixedHeight(60) # Add this line to set the height of the product name input box to 60
@@ -65,13 +65,13 @@ class InStorage(QWidget):
         self.counter = QLCDNumber()
 
         # Create a button to perform some action
-        self.inbound_button = QPushButton("入库")
+        self.inbound_button = QPushButton("Inbound")
         self.inbound_button.setFont(QtGui.QFont("Arial", 16))
         self.inbound_button.clicked.connect(self.addInbound)
         self.inbound_button.setEnabled(False)
 
         # Create a button to start inventory
-        self.inventory_button = QPushButton("开始盘点")
+        self.inventory_button = QPushButton("START")
         self.inventory_button.setFont(QtGui.QFont("Arial", 16))
         self.inventory_button.clicked.connect(self.startAsyncInventory)
         # self.inventory_button.clicked.connect(self.startSyncInventory)
@@ -113,7 +113,7 @@ class InStorage(QWidget):
 
     def addInbound(self):
         if not self.epc_list:
-            QMessageBox.warning(self, "警告", "epc码列表为空，请重新盘点！")
+            QMessageBox.warning(self, "WARNING", "epc list is empty, please retry !")
             return
         barcode = self.barcode_input.currentText()
         name = self.product_name_input.currentText()
@@ -136,7 +136,7 @@ class InStorage(QWidget):
             self.epc_list = []
             self.counter_updated.emit(0)
         else:
-            QMessageBox.warning(self, "警告", "请扫描或输入商品条形码！")
+            QMessageBox.warning(self, "WARNING", "Please enter or scan the product barcode")
 
     def deleteInbound(self, row):
         barcode = self.table.item(row, 0).text()
@@ -157,7 +157,7 @@ class InStorage(QWidget):
             self.table.setItem(row_count, 3, QTableWidgetItem(str(inbound[3])))
             timestamp = datetime.fromtimestamp(inbound[4] / 1000).strftime('%Y-%m-%d %H:%M:%S')
             self.table.setItem(row_count, 4, QTableWidgetItem(timestamp))
-            details_button = QPushButton("详情")
+            details_button = QPushButton("Details")
             details_button.setFont(QtGui.QFont("Arial", 12))
             self.table.setCellWidget(row_count, 5, details_button)
             details_button.clicked.connect(lambda state, row=row_count: self.showEpcs(row))
@@ -197,7 +197,7 @@ class InStorage(QWidget):
             try:
                 time.sleep(1)
                 self.counter_updated.emit(len(self.epc_list))
-                self.inventory_button.setText(f"结束盘点[{(str(round(self.inventory_duration_ref[0])) + 's') if self.inventory_duration_ref[0] > 0 else ''}]")  # Add this line to set the text of the inventory_button to "结束盘点"
+                self.inventory_button.setText(f"STOP[{(str(round(self.inventory_duration_ref[0])) + 's') if self.inventory_duration_ref[0] > 0 else ''}]")  # Add this line to set the text of the inventory_button to "结束盘点"
                 print(f"Counter updated: {len(self.epc_list)}, inventory_duration_ref: {self.inventory_duration_ref[0]}")
                 if not self.counter_thread.is_alive():
                     print("Counter thread terminated.")
@@ -209,6 +209,7 @@ class InStorage(QWidget):
         print("Counter updated done.")
 
     def startAsyncInventory(self):
+        self.counter_updated.emit(0)
         stop_async_inventory_event.clear()  # Unset the threading.Event object to resume the inventory process
         # self.inventory_button.setEnabled(False)
         self.inventory_button.disconnect()
@@ -230,7 +231,7 @@ class InStorage(QWidget):
         quantity = self.counter.value()
         if quantity > 0:
             self.inbound_button.setEnabled(True)
-        self.inventory_button.setText("开始盘点")
+        self.inventory_button.setText("START")
         self.inventory_button.clicked.connect(self.startAsyncInventory)
 
     def getEpcListThread(self):
@@ -249,14 +250,14 @@ class InStorage(QWidget):
         inbound_id = self.table.item(row, 0).text()
         epcs = database.get_epcs(inbound_id)
         if not epcs:
-            QMessageBox.warning(self, "警告", "该入库单没有对应的epc码！")
+            QMessageBox.warning(self, "WARNING", "Epc not found !")
             return
         epc_list_widget = QWidget()
-        epc_list_widget.setWindowTitle(f"入库单 {inbound_id} 对应的epc码列表")
+        epc_list_widget.setWindowTitle(f"Epc list of the inbound record {inbound_id}")
         epc_list_widget_layout = QVBoxLayout()
         epc_list_table = QTableWidget()
         epc_list_table.setColumnCount(4)
-        epc_list_table.setHorizontalHeaderLabels(["EPC码", "条形码", "商品名称", "时间戳"])
+        epc_list_table.setHorizontalHeaderLabels(["EPC", "Barcode", "Product Name", "Time"])
         for i, data in enumerate(epcs):
             if data:
                 epc_item = QTableWidgetItem(data[0])
