@@ -1,10 +1,15 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget
 from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon
 import qdarktheme
 
 from in_storage import InStorage
 from out_storage import OutStorage
 from system_config import SystemConfig
+from products import Products
+
+# import the resource module
+import icon_rc
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -12,25 +17,34 @@ class MainWindow(QWidget):
         self.initUI()
     def initUI(self):
         self.setWindowTitle("GreenElement RFID WMS 1.0")
+        # create a QIcon object with the resource path
+        icon = QIcon(":/icon.png")
+        # set the window icon
+        self.setWindowIcon(icon)        
         # Create a menu list on the left
         self.menu_list = QListWidget()
         # Set the menu width to 20% of the window width
         self.menu_list.setFixedWidth(100)
         self.menu_list.setMinimumHeight(40 * self.menu_list.count())
-        menu_item1 = QListWidgetItem("入库管理")
+        menu_item1 = QListWidgetItem("Inbound")
         menu_item1.setSizeHint(QSize(0, 40))
         menu_item1.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item1.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
-        menu_item2 = QListWidgetItem("出库管理")
+        menu_item2 = QListWidgetItem("Outbound")
         menu_item2.setSizeHint(QSize(0, 40))
         menu_item2.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item2.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
-        menu_item3 = QListWidgetItem("系统配置")
+        menu_item3 = QListWidgetItem("Config")
         menu_item3.setSizeHint(QSize(0, 40))
         menu_item3.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
         menu_item3.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
+        menu_item4 = QListWidgetItem("Product")
+        menu_item4.setSizeHint(QSize(0, 40))
+        menu_item4.setTextAlignment(Qt.AlignHCenter) # Add this line to center the text
+        menu_item4.setTextAlignment(Qt.AlignVCenter) # Add this line to center the text vertically
         self.menu_list.addItem(menu_item1)
         self.menu_list.addItem(menu_item2)
+        self.menu_list.addItem(menu_item4)
         self.menu_list.addItem(menu_item3)
         self.menu_list.setCurrentItem(menu_item1)
          # Create a stacked widget on the right to hold different subpages
@@ -39,8 +53,10 @@ class MainWindow(QWidget):
         self.page1 = InStorage()
         self.page2 = OutStorage()
         self.page3 = SystemConfig()
+        self.page4 = Products()
         self.sub_page.addWidget(self.page1)
         self.sub_page.addWidget(self.page2)
+        self.sub_page.addWidget(self.page4)
         self.sub_page.addWidget(self.page3)
          # Connect the menu item change signal to the slot function that changes the subpage
         self.menu_list.currentItemChanged.connect(self.changePage)
@@ -62,13 +78,16 @@ class MainWindow(QWidget):
         
      # Change the subpage according to the menu item text
     def changePage(self, current, previous):
-        if current.text() == "入库管理":
+        if current.text() == "Inbound":
             # Set the current widget of the stacked widget to page1
             self.sub_page.setCurrentWidget(self.page1)
-        elif current.text() == "出库管理":
+        elif current.text() == "Outbound":
             # Set the current widget of the stacked widget to page2
             self.sub_page.setCurrentWidget(self.page2)
-        elif current.text() == "系统配置":
+        elif current.text() == "Product":
+            # Set the current widget of the stacked widget to page3
+            self.sub_page.setCurrentWidget(self.page4)
+        elif current.text() == "Config":
             # Set the current widget of the stacked widget to page3
             self.sub_page.setCurrentWidget(self.page3)
 
