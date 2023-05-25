@@ -1,0 +1,1 @@
+pyinstaller -n ge-rfid-wms -F -w -i icon.ico app.py
