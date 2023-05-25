@@ -1,9 +1,12 @@
 import sqlite3
 import time
 from auto_express import Express
+from config import DATA_PATH
+
+DB_PATH = f"{DATA_PATH}/.rfid_wms.db"
 
 def create_table():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inbounds (
@@ -97,7 +100,7 @@ def create_table():
     conn.close()
 
 def add_inbound(barcode, name, quantity, timestamp=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     if not timestamp:
         timestamp = int(round(time.time() * 1000))
@@ -108,21 +111,21 @@ def add_inbound(barcode, name, quantity, timestamp=None):
     return inbound_id
 
 def delete_inbound(barcode):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM inbounds WHERE barcode = ?", (barcode,))
     conn.commit()
     conn.close()
 
 def update_inbound(barcode, quantity):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE inbounds SET quantity = ? WHERE barcode = ?", (quantity, barcode))
     conn.commit()
     conn.close()    
 
 def delete_old_data():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     now = int(time.time())
     two_days_ago = now - 2 * 24 * 60 * 60
@@ -131,7 +134,7 @@ def delete_old_data():
     conn.close()
 
 def get_inbound_name(barcode):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM inbounds WHERE barcode = ?", (barcode,))
     result = cursor.fetchone()
@@ -142,7 +145,7 @@ def get_inbound_name(barcode):
         return None
 
 def get_inbound_barcode(name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT barcode FROM inbounds WHERE name = ?", (name,))
     result = cursor.fetchone()
@@ -153,7 +156,7 @@ def get_inbound_barcode(name):
         return None
 
 def get_inbounds():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT id, barcode, name, quantity, timestamp FROM inbounds")
     results = cursor.fetchall()
@@ -161,28 +164,28 @@ def get_inbounds():
     return results
 
 def add_product(barcode, name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (barcode, name) VALUES (?, ?)", (barcode, name))
     conn.commit()
     conn.close()
 
 def delete_product(barcode):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM products WHERE barcode = ?", (barcode,))
     conn.commit()
     conn.close()
 
 def update_product(barcode, name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE products SET name = ? WHERE barcode = ?", (name, barcode))
     conn.commit()
     conn.close()    
 
 def get_product_name(barcode):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM products WHERE barcode = ?", (barcode,))
     result = cursor.fetchone()
@@ -193,7 +196,7 @@ def get_product_name(barcode):
         return None
 
 def get_product_barcode(name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT barcode FROM products WHERE name = ?", (name,))
     result = cursor.fetchone()
@@ -204,7 +207,7 @@ def get_product_barcode(name):
         return None
 
 def get_products():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT barcode, name FROM products")
     results = cursor.fetchall()
@@ -212,21 +215,21 @@ def get_products():
     return results
 
 def add_rfid_reader_config(port=8080, antennas='1, 2', inventory_duration=30, inventory_api_retries=3, address='192.168.1.100', consecutive_count=3):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO rfid_reader_config (port, antennas, inventory_duration, inventory_api_retries, address, consecutive_count) VALUES (?, ?, ?, ?, ?, ?)", (port, antennas, inventory_duration, inventory_api_retries, address, consecutive_count))
     conn.commit()
     conn.close()
 
 def delete_rfid_reader_config():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM rfid_reader_config")
     conn.commit()
     conn.close()
 
 def update_rfid_reader_config(port=None, antennas=None, inventory_duration=None, inventory_api_retries=None, address=None, consecutive_count=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if port:
         c.execute("UPDATE rfid_reader_config SET port = ?", (port,))
@@ -244,7 +247,7 @@ def update_rfid_reader_config(port=None, antennas=None, inventory_duration=None,
     conn.close()
 
 def get_rfid_reader_config():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT port, antennas, inventory_duration, inventory_api_retries, address, consecutive_count FROM rfid_reader_config")
     result = cursor.fetchone()
@@ -262,7 +265,7 @@ def get_rfid_reader_config():
         return None
 
 def add_epc(epc, barcode, name, inbound_id, timestamp=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     if not timestamp:
         timestamp = int(round(time.time() * 1000))
@@ -271,7 +274,7 @@ def add_epc(epc, barcode, name, inbound_id, timestamp=None):
     conn.close()
 
 def add_epcs(epc_list, barcode, name, inbound_id, timestamp=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     '''
     if not timestamp:
@@ -284,14 +287,14 @@ def add_epcs(epc_list, barcode, name, inbound_id, timestamp=None):
     conn.close()
 
 def delete_epc(epc):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM epcs WHERE epc = ?", (epc,))
     conn.commit()
     conn.close()
 
 def update_epc(epc, barcode=None, name=None, timestamp=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if barcode:
         c.execute("UPDATE epcs SET barcode = ? WHERE epc = ?", (barcode, epc))
@@ -303,7 +306,7 @@ def update_epc(epc, barcode=None, name=None, timestamp=None):
     conn.close()    
 
 def get_epc_name(epc):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM epcs WHERE epc = ?", (epc,))
     result = cursor.fetchone()
@@ -314,7 +317,7 @@ def get_epc_name(epc):
         return None
 
 def get_epc_barcode(epc):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT barcode FROM epcs WHERE epc = ?", (epc,))
     result = cursor.fetchone()
@@ -325,7 +328,7 @@ def get_epc_barcode(epc):
         return None
 
 def get_epcs(inbound_id):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT epc, barcode, name, timestamp FROM epcs WHERE inbound_id=?", (inbound_id,))
     results = cursor.fetchall()
@@ -333,7 +336,7 @@ def get_epcs(inbound_id):
     return results
 
 def get_epc_barcode_counts(epc_list):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     epc_list = list(epc_list)
     cursor.execute("SELECT barcode, COUNT(*) as quantity FROM epcs WHERE epc IN ({}) GROUP BY barcode".format(','.join('?'*len(epc_list))), epc_list)
@@ -342,7 +345,7 @@ def get_epc_barcode_counts(epc_list):
     return {row[0]: row[1] for row in results}
 
 def add_express_config(name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO express_config (name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url)
@@ -352,14 +355,14 @@ def add_express_config(name, username, password, username_field_name, password_f
     conn.close()
 
 def delete_express_config(name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM express_config WHERE name = ?", (name,))
     conn.commit()
     conn.close()
 
 def update_express_config(name, username=None, password=None, username_field_name=None, password_field_name=None, login_url=None, logged_in_element_class=None, home_url=None):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if username:
         c.execute("UPDATE express_config SET username = ? WHERE name = ?", (username, name))
@@ -379,7 +382,7 @@ def update_express_config(name, username=None, password=None, username_field_nam
     conn.close()
 
 def get_all_express_configs():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url FROM express_config")
     result = cursor.fetchall()
@@ -392,7 +395,7 @@ def get_all_express_configs():
 
 
 def get_express_config(name):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT name, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url FROM express_config WHERE name = ?", (name,))
     result = cursor.fetchone()
@@ -412,7 +415,7 @@ def get_express_config(name):
         return None
 
 def add_order(order):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
@@ -422,7 +425,7 @@ def add_order(order):
     conn.close()
 
 def add_orders(orders):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     insert_query = """
         INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
@@ -458,14 +461,14 @@ def add_orders(orders):
     conn.close()    
 
 def delete_order(order_no):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM orders WHERE OrderNo = ?", (order_no,))
     conn.commit()
     conn.close()
 
 def update_order(order_no, updates):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     for field, value in updates.items():
@@ -476,7 +479,7 @@ def update_order(order_no, updates):
     conn.close()
 
 def get_orders_by_order_no(order_no):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
@@ -490,7 +493,7 @@ def get_orders_by_order_no(order_no):
     return [dict(zip(keys, result)) for result in results]
 
 def get_orders_by_order_nos(order_nos):
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     placeholders = ', '.join(['?'] * len(order_nos))
     query = f"SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo FROM orders WHERE OrderNo IN ({placeholders})"
@@ -502,7 +505,7 @@ def get_orders_by_order_nos(order_nos):
     return [dict(zip(keys, result)) for result in results]
 
 def get_orders():
-    conn = sqlite3.connect("rfid_wms.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
