@@ -73,6 +73,7 @@ def create_table():
         add_express_config(Express.SAGAWAEXP.value, '0476497727001', 'moal6173', 'user2', 'pass2', 'https://www.e-service.sagawa-exp.co.jp/auth/realms/sc/protocol/openid-connect/auth?response_type=code&scope=openid&client_id=sagawa-exp.co.jp&state=LfFylwnqdxU1SivhUBjX5LwPvPY&redirect_uri=https%3A%2F%2Fwww.e-service.sagawa-exp.co.jp%2Fredirect%2Fredirect_uri&nonce=3sNAU2WZclbg39LBLImJBxTV9ueiHvq_pt4svzzUcK4', 'logged-in', 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet')
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             Type TEXT,
             JAN TEXT,
             Expiration TEXT,
@@ -91,9 +92,10 @@ def create_table():
             CustomerOrderID TEXT,
             Qty INTEGER,
             OutboundStatus TEXT DEFAULT 'waiting',
+            OrderNo TEXT,
+            Express TEXT,
             ExpressNo TEXT,
-            ExpressTime TEXT,
-            OrderNo TEXT
+            ExpressTime TEXT
         )
     """)
     conn.commit()
@@ -418,9 +420,32 @@ def add_order(order):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?. ?)
-    """, (order.get('Type', ''), order.get('JAN', ''), order.get('Expiration', ''), order.get('ZIP', ''), order.get('Address', ''), order.get('Name', ''), order.get('TEL', ''), order.get('Text1', ''), order.get('Text2', ''), order.get('D_Date', ''), order.get('D_Time', ''), order.get('ShipperZIP', ''), order.get('ShipperName', ''), order.get('ShipperAddress', ''), order.get('ShipperTel', ''), order.get('CustomerOrderID', ''), order.get('Qty', 0), order.get('OutboundStatus', 'waiting'), order.get('ExpressNo', ''), order.get('ExpressTime', ''), order.get('OrderNo', '')))
+        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, OrderNo, Express, ExpressNo, ExpressTime)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+            order.get('Type', ''),
+            order.get('JAN', ''),
+            order.get('Expiration', ''),
+            order.get('ZIP', ''),
+            order.get('Address', ''),
+            order.get('Name', ''),
+            order.get('TEL', ''),
+            order.get('Text1', ''),
+            order.get('Text2', ''),
+            order.get('D_Date', ''),
+            order.get('D_Time', ''),
+            order.get('ShipperZIP', ''),
+            order.get('ShipperName', ''),
+            order.get('ShipperAddress', ''),
+            order.get('ShipperTel', ''),
+            order.get('CustomerOrderID', ''),
+            order.get('Qty', 0),
+            order.get('OutboundStatus', 'waiting'),
+            order.get('OrderNo', ''),
+            order.get('Express', ''),
+            order.get('ExpressNo', ''),
+            order.get('ExpressTime', ''),        
+    ))
     conn.commit()
     conn.close()
 
@@ -428,8 +453,8 @@ def add_orders(orders):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     insert_query = """
-        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO orders (Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, OrderNo, Express, ExpressNo, ExpressTime)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     insert_values = []
     for order in orders:
@@ -452,9 +477,10 @@ def add_orders(orders):
             order.get('CustomerOrderID', ''),
             order.get('Qty', 0),
             order.get('OutboundStatus', 'waiting'),
+            order.get('OrderNo', ''),
+            order.get('Express', ''),
             order.get('ExpressNo', ''),
             order.get('ExpressTime', ''),
-            order.get('OrderNo', '')
         ))
     cursor.executemany(insert_query, insert_values)
     conn.commit()
@@ -482,37 +508,37 @@ def get_orders_by_order_no(order_no):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
+        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, OrderNo, Express, ExpressNo, ExpressTime
         FROM orders
         WHERE OrderNo = ?
     """, (order_no,))
     results = cursor.fetchall()
     conn.close()
 
-    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'OrderNo', 'Express', 'ExpressNo', 'ExpressTime']
     return [dict(zip(keys, result)) for result in results]
 
 def get_orders_by_order_nos(order_nos):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     placeholders = ', '.join(['?'] * len(order_nos))
-    query = f"SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo FROM orders WHERE OrderNo IN ({placeholders})"
+    query = f"SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, OrderNo, Express, ExpressNo, ExpressTime FROM orders WHERE OrderNo IN ({placeholders})"
     cursor.execute(query, order_nos)
     results = cursor.fetchall()
     conn.close()
 
-    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'OrderNo', 'Express', 'ExpressNo', 'ExpressTime']
     return [dict(zip(keys, result)) for result in results]
 
 def get_orders():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, ExpressNo, ExpressTime, OrderNo
+        SELECT Type, JAN, Expiration, ZIP, Address, Name, TEL, Text1, Text2, D_Date, D_Time, ShipperZIP, ShipperName, ShipperAddress, ShipperTel, CustomerOrderID, Qty, OutboundStatus, OrderNo, Express, ExpressNo, ExpressTime
         FROM orders
     """)
     results = cursor.fetchall()
     conn.close()
 
-    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+    keys = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'OrderNo', 'Express', 'ExpressNo', 'ExpressTime']
     return [dict(zip(keys, result)) for result in results]

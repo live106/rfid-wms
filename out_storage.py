@@ -156,7 +156,7 @@ class OutStorage(QWidget):
         template_button.clicked.connect(self.download_template)
 
         self.order_table = QTableWidget()
-        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'ExpressNo', 'ExpressTime', 'OrderNo']
+        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'OrderNo', 'Express', 'ExpressNo', 'ExpressTime']
         self.order_table.setColumnCount(len(headers))
         self.order_table.setHorizontalHeaderLabels(headers)
         self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -205,7 +205,7 @@ class OutStorage(QWidget):
         worksheet = workbook.active
 
         # Add the desired headers to the worksheet
-        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo']
+        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo', 'Express']
         for i, header in enumerate(headers):
             cell = worksheet.cell(row=1, column=i+1)
             cell.value = header
@@ -225,7 +225,7 @@ class OutStorage(QWidget):
         headers = [cell.value for cell in worksheet[1]]
 
         # Compare the headers to the headers of the corresponding table in your UI
-        expected_headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo']
+        expected_headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo', 'Express']
         if headers != expected_headers:
             QMessageBox.warning(None, "Error", "The headers in the selected file do not match the expected headers.")
             return
@@ -284,6 +284,9 @@ class OutStorage(QWidget):
             self.match_table.setItem(i, 4, QTableWidgetItem(str(match)))
             if not match:
                 all_match = False
+            express = row.get('Express', None)
+            if any(e.value == express for e in Express):
+                self.express_combo.setCurrentText(express)
 
         self.outbound_button.setEnabled(all_match)
 
