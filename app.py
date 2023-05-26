@@ -209,6 +209,26 @@ class MainWindow(QWidget):
             if not self.license_dialog.exec_():
                 self.hide()
 
+    # 定义一个resetPage1方法，用于删除page1的所有子控件，并重新创建一个新的InStorage实例作为page1。
+    def resetPage1(self):
+        layout = self.page1.layout()
+        for i in reversed(range(layout.count())): 
+            item = layout.takeAt(i).widget()
+            if item is not None:
+                item.deleteLater()
+        layout.deleteLater()
+        del layout
+
+        index = self.sub_page.indexOf(self.page1)
+        del self.page1
+
+        self.page1 = InStorage()
+        self.page1.setObjectName("page1")
+        self.page1.setProperty("index", index)
+
+        self.sub_page.addWidget(self.page1)
+        self.sub_page.setCurrentWidget(self.page1)
+
 def checkDataDir():
     if not os.path.exists(DATA_PATH): # 如果文件夹不存在
         os.makedirs(DATA_PATH) # 创建文件夹
