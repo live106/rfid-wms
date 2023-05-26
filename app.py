@@ -1,7 +1,7 @@
 import sys
 import os
 
-from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget, QLabel, QLineEdit, QPushButton, QDialog, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget, QLabel, QLineEdit, QPushButton, QDialog, QMessageBox, QDesktopWidget
 from PyQt5.QtCore import Qt, QSize
 from PyQt5 import QtGui
 from PyQt5.QtGui import QIcon
@@ -51,6 +51,8 @@ class LicenseDialog(QDialog):
         vbox.addWidget(self.confirm_button)
         self.setLayout(vbox)
 
+        self.centerOnScreen()
+
     def confirm(self):
         # 获取输入的license
         license = self.license_edit.text()
@@ -77,6 +79,18 @@ class LicenseDialog(QDialog):
              sys.exit()
         else:
             event.ignore()
+
+    def centerOnScreen(self):
+        # Get the screen available geometry
+        screen_geometry = QDesktopWidget().availableGeometry()
+        # Calculate the center point of the screen
+        screen_center = screen_geometry.center()
+        # Get the dialog geometry
+        dialog_geometry = self.frameGeometry()
+        # Move the dialog geometry to the center point of the screen
+        dialog_geometry.moveCenter(screen_center)
+        # Move the dialog to the top-left point of the dialog geometry
+        self.move(dialog_geometry.topLeft())
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -154,7 +168,8 @@ class MainWindow(QWidget):
     def changePage(self, current, previous):
         if current.text() == "Inbound":
             # Set the current widget of the stacked widget to page1
-            self.sub_page.setCurrentWidget(self.page1)
+            # self.sub_page.setCurrentWidget(self.page1)
+            self.resetPage1()
         elif current.text() == "Outbound":
             # Set the current widget of the stacked widget to page2
             self.sub_page.setCurrentWidget(self.page2)
@@ -169,17 +184,17 @@ class MainWindow(QWidget):
         if event.key() == Qt.Key_Escape:
             event.ignore()
 
-    def centerOnScreen(self):
-        # Get the screen resolution
-        screen_resolution = QApplication.desktop().screenGeometry()
-        # Calculate the center point of the screen
-        center_x = screen_resolution.width() / 2
-        center_y = screen_resolution.height() / 2
-        # Calculate the top-left point of the window
-        top_left_x = center_x - (self.frameSize().width() / 2)
-        top_left_y = center_y - (self.frameSize().height() / 2)
-        # Set the window position
-        self.move(int(top_left_x), int(top_left_y))
+    # def centerOnScreen(self):
+    #     # Get the screen resolution
+    #     screen_resolution = QApplication.desktop().screenGeometry()
+    #     # Calculate the center point of the screen
+    #     center_x = screen_resolution.width() / 2
+    #     center_y = screen_resolution.height() / 2
+    #     # Calculate the top-left point of the window
+    #     top_left_x = center_x - (self.frameSize().width() / 2)
+    #     top_left_y = center_y - (self.frameSize().height() / 2)
+    #     # Set the window position
+    #     self.move(int(top_left_x), int(top_left_y))
 
     # 重写showEvent方法，在显示主窗口之前，先检查本地是否有缓存的license，如果有则验证是否有效，如果无效或没有缓存，则显示前置页面。
     def showEvent(self, event):
