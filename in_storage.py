@@ -248,7 +248,7 @@ class InStorage(QWidget):
 
     def showEpcs(self, row):
         inbound_id = self.table.item(row, 0).text()
-        epcs = database.get_epcs(inbound_id)
+        epcs = database.get_epcs({'inbound_id': inbound_id})
         if not epcs:
             QMessageBox.warning(self, "WARNING", "Epc not found !")
             return

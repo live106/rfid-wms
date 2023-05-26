@@ -9,7 +9,7 @@ import time
 import datetime
 
 from auto_express import create_express_printer, Express
-from database import add_orders, get_orders, get_orders_by_order_no, get_epc_barcode_counts, get_orders_by_order_nos
+from database import add_orders, get_orders, get_orders_by_order_no, get_valid_epc_barcode_counts, get_orders_by_order_nos, update_epcs, update_order
 import rfid_api
 from rfid_api import stop_async_inventory_event
 
@@ -186,9 +186,17 @@ class OutStorage(QWidget):
         
     def on_print_finished(self, result):
         if result:
-            QMessageBox.information(self, "Success", "Print Express Bill Successful !")
+            if len(self.current_order_match_data) > 0:
+                order_no = self.current_order_match_data[0].get('OrderNo', None)
+                if order_no:
+                    current_date = datetime.date.today()
+                    formatted_date = current_date.strftime("%Y/%m/%d")
+                    update_order(order_no, {'OutboundStatus': 'Done', 'ExpressTime': formatted_date})
+                    update_epcs(self.epc_list, {'order_no': order_no})
+
+            QMessageBox.information(self, "Success", f"Order: {order_no} Outbound Successful !")
         else:
-            QMessageBox.warning(self, "Warning", "Print Express Bill Failure, Please Rety !")
+            QMessageBox.warning(self, "Warning", f"Order: {order_no} Outbound Failure, Please Retry !")
 
     def closeEvent(self, event):
         if self.order_thread is not None:
@@ -338,7 +346,7 @@ class OutStorage(QWidget):
     def updateCounter(self, value):
         self.counter.display(value)
         if len(self.epc_list) > 0:
-            result = get_epc_barcode_counts(self.epc_list)
+            result = get_valid_epc_barcode_counts(self.epc_list)
             print('result: ', result)
             for v in self.current_order_match_data:
                 v['CurrentQty'] = result.get(v['JAN'], 0)

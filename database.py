@@ -45,6 +45,7 @@ def create_table():
             name TEXT,
             timestamp INTEGER DEFAULT (strftime('%s', 'now') * 1000),
             inbound_id INTEGER,
+            order_no TEXT,
             FOREIGN KEY (inbound_id) REFERENCES inbounds(id)
         )
     """)
@@ -278,13 +279,12 @@ def add_epc(epc, barcode, name, inbound_id, timestamp=None):
 def add_epcs(epc_list, barcode, name, inbound_id, timestamp=None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    '''
     if not timestamp:
         timestamp = int(round(time.time() * 1000))
-    for epc in epc_list:
-        cursor.execute("INSERT INTO epcs (epc, barcode, name, inbound_id, timestamp) VALUES (?, ?, ?, ?, ?)", (epc, barcode, name, inbound_id, timestamp))
-    '''
-    cursor.executemany("INSERT INTO epcs (epc, barcode, name, inbound_id, timestamp) VALUES (?, ?, ?, ?, ?)", epc_list)
+    # convert epc_list to a list of tuples
+    values = [(epc, barcode, name, inbound_id, timestamp) for epc in epc_list]
+    # use executemany() to insert multiple values at once
+    cursor.executemany("INSERT INTO epcs (epc, barcode, name, inbound_id, timestamp) VALUES (?, ?, ?, ?, ?)", values)
     conn.commit()
     conn.close()
 
@@ -295,17 +295,16 @@ def delete_epc(epc):
     conn.commit()
     conn.close()
 
-def update_epc(epc, barcode=None, name=None, timestamp=None):
+def update_epcs(epc_list, updates):
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    if barcode:
-        c.execute("UPDATE epcs SET barcode = ? WHERE epc = ?", (barcode, epc))
-    if name:
-        c.execute("UPDATE epcs SET name = ? WHERE epc = ?", (name, epc))
-    if timestamp:
-        c.execute("UPDATE epcs SET timestamp = ? WHERE epc = ?", (timestamp, epc))
+    cursor = conn.cursor()
+
+    for field, value in updates.items():
+        if value is not None:
+            cursor.execute(f"UPDATE epcs SET {field} = ? WHERE epc IN ({','.join('?'*len(epc_list))})", (value, epc_list))
+
     conn.commit()
-    conn.close()    
+    conn.close()
 
 def get_epc_name(epc):
     conn = sqlite3.connect(DB_PATH)
@@ -329,19 +328,29 @@ def get_epc_barcode(epc):
     else:
         return None
 
-def get_epcs(inbound_id):
+def get_epcs(query_dict):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT epc, barcode, name, timestamp FROM epcs WHERE inbound_id=?", (inbound_id,))
+    # Build the query string from the query_dict keys and values
+    query_string = "SELECT epc, barcode, name, timestamp FROM epcs WHERE "
+    query_params = []
+    for key, value in query_dict.items():
+        query_string += f"{key}=? AND "
+        query_params.append(value)
+    # Remove the last "AND " from the query string
+    query_string = query_string[:-4]
+    # Execute the query with the query_params
+    cursor.execute(query_string, tuple(query_params))
     results = cursor.fetchall()
     conn.close()
     return results
 
-def get_epc_barcode_counts(epc_list):
+# 查询还未出库的epc_list对应的各barcode数量
+def get_valid_epc_barcode_counts(epc_list):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     epc_list = list(epc_list)
-    cursor.execute("SELECT barcode, COUNT(*) as quantity FROM epcs WHERE epc IN ({}) GROUP BY barcode".format(','.join('?'*len(epc_list))), epc_list)
+    cursor.execute("SELECT barcode, COUNT(*) as quantity FROM epcs WHERE order_no is null and epc IN ({}) GROUP BY barcode".format(','.join('?'*len(epc_list))), epc_list)
     results = cursor.fetchall()
     conn.close()
     return {row[0]: row[1] for row in results}
@@ -394,7 +403,6 @@ def get_all_express_configs():
         return [dict(zip(keys, row)) for row in result]
     else:
         return None
-
 
 def get_express_config(name):
     conn = sqlite3.connect(DB_PATH)
