@@ -53,18 +53,18 @@ class Products(QWidget):
         # create pages and corresponding labels
         self.page_links = []
         
-        # set the products per page to 2 by default
-        self.products_per_page = 2
+        # set the products per page to 10 by default
+        self.products_per_page = 20
         
         # create a spin box to change the products per page
         self.spin_box = QSpinBox()
         self.spin_box.setMinimum(1) # minimum value is 1
-        self.spin_box.setMaximum(10) # maximum value is 10
-        self.spin_box.setValue(self.products_per_page) # initial value is 2
+        self.spin_box.setMaximum(50) # maximum value is 50
+        self.spin_box.setValue(self.products_per_page) # initial value
         self.spin_box.valueChanged.connect(self.change_products_per_page) # connect the value changed signal to a slot
         
         # add the spin box to the pagination layout
-        self.pagination_layout.addWidget(QLabel("Per Page："))
+        self.pagination_layout.addWidget(QLabel("Per Page: "))
         self.pagination_layout.addWidget(self.spin_box)
 
         self.products = database.get_products() # get all products from database
@@ -125,6 +125,7 @@ class Products(QWidget):
                 barcode = row[0].value # get the barcode value from the first column
                 name = row[1].value # get the name value from the second column
                 database.add_product(barcode, name) # add the product to database
+                print(barcode, name)
 
             QMessageBox.information(self, "SCUCCESS", "Import successful !") # show a message box to indicate success
 
