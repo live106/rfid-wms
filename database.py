@@ -299,7 +299,7 @@ def update_epcs(epc_list, updates):
 
     for field, value in updates.items():
         if value is not None:
-            cursor.execute(f"UPDATE epcs SET {field} = ? WHERE epc IN ({','.join('?'*len(epc_list))})", (value, epc_list))
+            cursor.execute(f"UPDATE epcs SET {field} = ? WHERE epc IN ({','.join('?'*len(epc_list))})", (value,) + tuple(epc_list))
 
     conn.commit()
     conn.close()
