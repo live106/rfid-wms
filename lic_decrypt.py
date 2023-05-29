@@ -2,7 +2,7 @@
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 from lic import *
-from config import DATA_PATH
+from config import LICENSE_PATH
 
 # 定义一个函数，使用AES算法和密钥解密license
 def decrypt_license(encrypted_license, key):
@@ -18,10 +18,8 @@ def decrypt_license(encrypted_license, key):
 def verify_license():
     # 调用generate_license函数，根据mac地址生成license 
     license = generate_license() 
-    # 调用read_key函数，从key.txt文件中读取密钥 
-    # key = read_key() 
     # 打开license.txt文件，以读取模式 
-    with open(f"{DATA_PATH}/license.txt", "rb") as f: 
+    with open(LICENSE_PATH, "rb") as f: 
         #读取文件内容，得到加密后的license字符串 
         encrypted_license = f.read() 
         # 关闭文件 

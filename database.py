@@ -1,9 +1,7 @@
 import sqlite3
 import time
 from auto_express import Express
-from config import DATA_PATH
-
-DB_PATH = f"{DATA_PATH}/.rfid_wms.db"
+from config import DB_PATH
 
 def create_table():
     conn = sqlite3.connect(DB_PATH)

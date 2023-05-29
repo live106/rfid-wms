@@ -3,7 +3,7 @@
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 from lic import *
-from config import DATA_PATH
+from config import LICENSE_PATH
 
 # 定义一个函数，使用AES算法和密钥加密license
 def encrypt_license(license, key):
@@ -17,15 +17,10 @@ def encrypt_license(license, key):
 
 # 定义一个函数，用于生成license文件和key文件
 def generate_license_file(license):
-    # with open(f"{DATA_PATH}/license_org.txt", "w") as f:
-    #     f.write(license)
-    #     f.close()
-    # 调用generate_key函数，随机生成一个密钥
-    # key = read_key()
     # 调用encrypt_license函数，使用AES算法和密钥加密license
     encrypted_license = encrypt_license(license, LIC_AES_KEY)
     # 打开一个文件，以写入模式
-    with open(f"{DATA_PATH}/license.txt", "wb") as f:
+    with open(LICENSE_PATH, "wb") as f:
         # 将加密后的license写入文件
         f.write(encrypted_license)
         # 关闭文件
