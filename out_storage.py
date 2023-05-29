@@ -4,14 +4,18 @@ from PyQt5 import QtGui
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, numbers
+from openpyxl.styles import Font
+import xlwings as xw
 import threading
 import time
 import datetime
+from html import unescape
 
 from auto_express import create_express_printer, Express
 from database import add_orders, get_orders, get_orders_by_order_no, get_valid_epc_barcode_counts, get_orders_by_order_nos, update_epcs, update_order
 import rfid_api
 from rfid_api import stop_async_inventory_event
+from config import ORDER_FOR_EXPRESS_PATH
 
 class PrintThread(QThread):
     finished = pyqtSignal(bool)
@@ -185,14 +189,15 @@ class OutStorage(QWidget):
         self.order_thread.start()
         
     def on_print_finished(self, result):
+        order_no = self.current_order_match_data[0].get('OrderNo', None)
         if result:
             if len(self.current_order_match_data) > 0:
-                order_no = self.current_order_match_data[0].get('OrderNo', None)
                 if order_no:
                     current_date = datetime.date.today()
                     formatted_date = current_date.strftime("%Y/%m/%d")
                     update_order(order_no, {'OutboundStatus': 'Done', 'ExpressTime': formatted_date})
                     update_epcs(self.epc_list, {'order_no': order_no})
+                    self.reload_orders()
 
             QMessageBox.information(self, "Success", f"Order: {order_no} Outbound Successful !")
         else:
@@ -375,7 +380,7 @@ class OutStorage(QWidget):
         self.save_outbound_excel_for_express(outbound_orders)
         self.print_express()
 
-    def save_outbound_excel_for_express(self, outbound_orders):
+    def save_outbound_excel_for_express0(self, outbound_orders):
         # Create a new Excel workbook and add a worksheet
         workbook = openpyxl.Workbook()
         worksheet = workbook.active
@@ -412,20 +417,105 @@ class OutStorage(QWidget):
             worksheet.cell(row=row_num, column=3, value=order.get("OrderNo", ""))
             worksheet.cell(row=row_num, column=4, value=order.get("ZIP", ""))
             worksheet.cell(row=row_num, column=5, value=order.get("Address", ""))
-            worksheet.cell(row=row_num, column=6, value=order.get("Address", ""))
+            worksheet.cell(row=row_num, column=6, value=order.get("Address", "").encode('utf-8'))
             worksheet.cell(row=row_num, column=7, value=order.get("Name", ""))
             worksheet.cell(row=row_num, column=8, value=order.get("TEL", ""))
             worksheet.cell(row=row_num, column=9, value=order.get("Text1", ""))
             worksheet.cell(row=row_num, column=10, value=order.get("Text2", ""))
-            worksheet.cell(row=row_num, column=11, value=order.get("Text1", ""))
+            # worksheet.cell(row=row_num, column=11, value=order.get("Text1", ""))
+            worksheet.cell(row=row_num, column=11, value="小包")
             worksheet.cell(row=row_num, column=12, value=order.get("口数", ""))
             worksheet.cell(row=row_num, column=13, value=order.get("発注番号", ""))
-            worksheet.cell(row=row_num, column=14, value=order.get("ShipperName", ""))
+            worksheet.cell(row=row_num, column=14, value=order.get("ShipperName", "").encode('utf-8'))
             worksheet.cell(row=row_num, column=15, value=order.get("ShipperZIP", ""))
-            worksheet.cell(row=row_num, column=16, value=order.get("ShipperAddress", ""))
-            worksheet.cell(row=row_num, column=17, value=order.get("ShipperAddress", ""))
+            worksheet.cell(row=row_num, column=16, value=order.get("ShipperAddress", "").encode('utf-8'))
+            worksheet.cell(row=row_num, column=17, value="")
+            # worksheet.cell(row=row_num, column=17, value=order.get("ShipperAddress", ""))
             worksheet.cell(row=row_num, column=18, value=order.get("ShipperTel", ""))
 
+        font = Font(name="ＭＳ Ｐゴシック", size=12)
+
+        # 遍历所有单元格
+        for row in worksheet.iter_rows():
+            for cell in row:
+                cell.font = font
+                cell.value = unescape(cell.value)
+
         # Save the workbook
-        file_path = "./order_for_express.xlsx"
-        workbook.save(file_path)
+        workbook.save(ORDER_FOR_EXPRESS_PATH)
+
+    def save_outbound_excel_for_express(self, outbound_orders):
+        # 创建一个新的 Excel 工作簿，不显示 Excel 应用程序
+        app = xw.App(visible=False)
+        workbook = app.books.add()
+
+        # 获取活动工作表
+        worksheet = workbook.sheets.active
+
+        # 定义所需的列标题
+        headers = [
+            "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2",
+            "名前", "電話", "Comment1", "Comment2", "Text1", "口数",
+            "発注番号", "Na", "YYU", "JYU", "JYU2", "TT"
+        ]
+
+        # 添加列标题到工作表
+        for col_num, header in enumerate(headers, 1):
+            cell = worksheet.cells(1, col_num)
+            cell.value = header
+            cell.api.HorizontalAlignment = -4108  # 居中对齐
+
+            # 调整列宽以适应内容
+            column_letter = chr(64 + col_num)
+            worksheet.range(f"{column_letter}:{column_letter}").autofit()
+
+        # 设置"出荷予定日"列的日期格式
+        date_format = "yyyy/m/d"
+        worksheet.range("A:A").number_format = date_format
+
+        # 填充工作表中的订单数据
+        for row_num, order in enumerate(outbound_orders, 2):
+            # 获取当前日期
+            current_date = datetime.date.today()
+            formatted_date = current_date.strftime("%Y/%m/%d").replace("/0", "/")
+            worksheet.cells(row_num, 1).value = formatted_date
+            # worksheet.cells(row_num, 1).value = order.get("D_Date", "")
+            worksheet.cells(row_num, 2).value = order.get("Type", "")
+            worksheet.cells(row_num, 3).value = order.get("OrderNo", "")
+            worksheet.cells(row_num, 4).value = order.get("ZIP", "")
+            worksheet.cells(row_num, 5).value = order.get("Address", "")
+            worksheet.cells(row_num, 6).value = order.get("Address", "")
+            worksheet.cells(row_num, 7).value = order.get("Name", "")
+            worksheet.cells(row_num, 8).value = order.get("TEL", "")
+            worksheet.cells(row_num, 9).value = order.get("Text1", "")
+            worksheet.cells(row_num, 10).value = order.get("Text2", "")
+            # worksheet.cells(row_num, 11).value = order.get("Text1", "")
+            worksheet.cells(row_num, 11).value = "小包"
+            worksheet.cells(row_num, 12).value = order.get("口数", "")
+            worksheet.cells(row_num, 13).value = order.get("発注番号", "")
+            worksheet.cells(row_num, 14).value = order.get("ShipperName", "")
+            worksheet.cells(row_num, 15).value = order.get("ShipperZIP", "")
+            worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")
+            worksheet.cells(row_num, 17).value = ""
+            # worksheet.cells(row_num, 17).value = order.get("ShipperAddress", "")
+            worksheet.cells(row_num, 18).value = order.get("ShipperTel", "")
+
+        '''
+        # 设置字体样式
+        font = workbook.api.Font.Name = "ＭＳ Ｐゴシック"
+        font_size = workbook.api.Font.Size = 12
+
+        # 遍历所有单元格
+        for row in worksheet.range(f"A1:{column_letter}{row_num}").api:
+            for cell in row:
+                cell.api.Font.Name = font
+                cell.api.Font.Size = font_size
+                cell.api.Value = unescape(cell.api.Value)
+        '''
+
+        # 保存工作簿
+        workbook.save(ORDER_FOR_EXPRESS_PATH)
+        workbook.close()
+
+        # 关闭 Excel 应用程序
+        app.quit()        
