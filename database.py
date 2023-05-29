@@ -27,7 +27,7 @@ def create_table():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             port INTEGER DEFAULT 8080,
             antennas TEXT DEFAULT '1, 2',
-            inventory_duration INTEGER DEFAULT 30,
+            inventory_duration INTEGER DEFAULT 15,
             inventory_api_retries INTEGER DEFAULT 3,
             address TEXT DEFAULT '192.168.1.100',
             consecutive_count INTEGER DEFAULT 3
