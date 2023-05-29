@@ -13,9 +13,11 @@ import time
 import pyautogui
 import os
 
+from config import ORDER_FOR_EXPRESS_PATH, DOWNLOAD_PATH
+
 class Express(Enum):
-    KURONEKOYAMATO = "大和运输"
-    SAGAWAEXP = "佐川急便"
+    KURONEKOYAMATO = "yamato"
+    SAGAWAEXP = "sagawa"
 
 def create_express_printer(name):
     config = database.get_express_config(name)
@@ -60,7 +62,7 @@ class ExpressPrinter(abc.ABC):
 
         # 设置默认下载路径
         self.options.add_experimental_option("prefs", {  
-            "download.default_directory": 'D:\\', 
+            "download.default_directory": DOWNLOAD_PATH, 
             "download.prompt_for_download": False,  
             "download.directory_upgrade": True,
             "safebrowsing.enabled": True 
@@ -117,7 +119,7 @@ class ExpressPrinterK(ExpressPrinter):
                 
                 element = self.driver.execute_script("return document.getElementById('filename');")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
-                element.send_keys("./order_for_express.xlsx")    
+                element.send_keys(ORDER_FOR_EXPRESS_PATH)    
                 print('set upload file')
                 
                 element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.ID, 'import_start')))
@@ -162,7 +164,7 @@ class ExpressPrinterK(ExpressPrinter):
                 
                 break  # exit the loop if successful
             except Exception as e:
-                print(f'Error: {e}')
+                print(f'Error: {str(e)}')
                 if i < 2:
                     print(f'Retrying in 3 seconds... (attempt {i+1}/3)')
                     time.sleep(3)
@@ -219,9 +221,21 @@ class ExpressPrinterS(ExpressPrinter):
                 element.click()
                 print('click 独自テンプレートを使用')
 
+                time.sleep(2)
+
                 select_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, "select-dokujiTemplSelectBox")))
                 actions = ActionChains(self.driver)
                 actions.move_to_element(select_element).click().perform()
+
+                time.sleep(1)
+
+                # 定位class包含el-select-dropdown__wrap的div元素
+                element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'el-select-dropdown__wrap')]")))
+                self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", element)
+
+                print('scroll the el-select-dropdown__wrap div')
+
+                time.sleep(2)
 
                 option_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'GEE')]/parent::li")))
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", option_element)
@@ -232,14 +246,11 @@ class ExpressPrinterS(ExpressPrinter):
 
                 element = self.driver.execute_script("return document.getElementsByName('files')[0];")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
-                # 获取当前脚本所在目录
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                # 拼接文件路径
-                file_path = os.path.join(current_dir, "order_for_express.xlsx")
-                # 获取文件的绝对路径
-                absolute_path = os.path.abspath(file_path)                
-                element.send_keys(absolute_path)
+                
+                element.send_keys(ORDER_FOR_EXPRESS_PATH)
                 print('set ファイルを選択 upload file')
+
+                time.sleep(1)
 
                 element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '直接取込')]/parent::button")))
                 element.click()
@@ -291,7 +302,7 @@ class ExpressPrinterS(ExpressPrinter):
                 
                 break  # exit the loop if successful
             except Exception as e:
-                print(f'Error: {e}')
+                print(f'Error: {str(e)}')
                 if i < 2:
                     print(f'Retrying in 5 seconds... (attempt {i+1}/3)')
                     time.sleep(3)
