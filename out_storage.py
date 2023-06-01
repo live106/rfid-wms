@@ -108,6 +108,7 @@ class OutStorage(QWidget):
         self.order_input = QLineEdit()
         self.order_input.setPlaceholderText('Please enter OrderNo')
         self.order_input.setFont(QtGui.QFont("Arial", 16))
+        self.order_input.setFocus(True)
         self.order_input.textChanged.connect(self.on_order_input_changed)
 
         # Create a button to start inventory
@@ -180,6 +181,11 @@ class OutStorage(QWidget):
         self.setLayout(vbox)
 
         self.reload_orders()
+
+    def showEvent(self, event):
+        # Set focus to order_input when the UI is shown
+        self.order_input.setFocus()
+        event.accept()            
 
     @pyqtSlot()
     def print_express(self):

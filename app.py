@@ -182,7 +182,7 @@ class MainWindow(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            event.ignore()
+            event.ignore()      
 
     # def centerOnScreen(self):
     #     # Get the screen resolution

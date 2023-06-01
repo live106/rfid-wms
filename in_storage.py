@@ -48,6 +48,8 @@ class InStorage(QWidget):
         self.barcode_input.setPlaceholderText("Please enter barcode")
         self.barcode_input.setFont(QtGui.QFont("Arial", 16))
         self.barcode_input.setEditable(True)
+        # Set focus to barcode_input
+        self.barcode_input.setFocus(True)
         # self.barcode_input.setFixedHeight(60) # Add this line to set the height of the barcode input box to 60
         self.barcode_input.currentIndexChanged.connect(self.updateProductName)
         self.barcode_input.currentTextChanged.connect(self.updateProductName)
@@ -107,6 +109,11 @@ class InStorage(QWidget):
 
         self.updateInputOptions()
         self.reloadTable()
+
+    def showEvent(self, event):
+        # Set focus to barcode_input when the UI is shown
+        self.barcode_input.setFocus()
+        event.accept()        
 
     def updateCounter(self, value):
         self.counter.display(value)
