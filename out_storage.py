@@ -386,71 +386,8 @@ class OutStorage(QWidget):
         self.save_outbound_excel_for_express(outbound_orders)
         self.print_express()
 
-    def save_outbound_excel_for_express0(self, outbound_orders):
-        # Create a new Excel workbook and add a worksheet
-        workbook = openpyxl.Workbook()
-        worksheet = workbook.active
-
-        # Define the desired column headers
-        headers = [
-            "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2",
-            "名前", "電話", "Comment1", "Comment2", "Text1", "口数",
-            "発注番号", "Na", "YYU", "JYU", "JYU2", "TT"
-        ]
-
-        # Add the headers to the worksheet
-        for col_num, header in enumerate(headers, 1):
-            cell = worksheet.cell(row=1, column=col_num)
-            cell.value = header
-            cell.alignment = Alignment(horizontal='center')
-
-            # Adjust the column width to fit the content
-            column_letter = get_column_letter(col_num)
-            worksheet.column_dimensions[column_letter].bestFit = True
-
-        # Set the number format for the "出荷予定日" column
-        date_format = 'yyyy/m/d'
-        worksheet.column_dimensions['A'].number_format = numbers.FORMAT_DATE_YYYYMMDD2
-
-        # Populate the worksheet with order data
-        for row_num, order in enumerate(outbound_orders, 2):
-            # 获取当前日期
-            current_date = datetime.date.today()
-            formatted_date = current_date.strftime("%Y/%m/%d").replace('/0', '/')
-            worksheet.cell(row=row_num, column=1, value=formatted_date)
-            # worksheet.cell(row=row_num, column=1, value=order.get("D_Date", ""))
-            worksheet.cell(row=row_num, column=2, value=order.get("Type", ""))
-            worksheet.cell(row=row_num, column=3, value=order.get("OrderNo", ""))
-            worksheet.cell(row=row_num, column=4, value=order.get("ZIP", ""))
-            worksheet.cell(row=row_num, column=5, value=order.get("Address", ""))
-            worksheet.cell(row=row_num, column=6, value=order.get("Address", "").encode('utf-8'))
-            worksheet.cell(row=row_num, column=7, value=order.get("Name", ""))
-            worksheet.cell(row=row_num, column=8, value=order.get("TEL", ""))
-            worksheet.cell(row=row_num, column=9, value=order.get("Text1", ""))
-            worksheet.cell(row=row_num, column=10, value=order.get("Text2", ""))
-            # worksheet.cell(row=row_num, column=11, value=order.get("Text1", ""))
-            worksheet.cell(row=row_num, column=11, value="小包")
-            worksheet.cell(row=row_num, column=12, value=order.get("口数", ""))
-            worksheet.cell(row=row_num, column=13, value=order.get("発注番号", ""))
-            worksheet.cell(row=row_num, column=14, value=order.get("ShipperName", "").encode('utf-8'))
-            worksheet.cell(row=row_num, column=15, value=order.get("ShipperZIP", ""))
-            worksheet.cell(row=row_num, column=16, value=order.get("ShipperAddress", "").encode('utf-8'))
-            worksheet.cell(row=row_num, column=17, value="")
-            # worksheet.cell(row=row_num, column=17, value=order.get("ShipperAddress", ""))
-            worksheet.cell(row=row_num, column=18, value=order.get("ShipperTel", ""))
-
-        font = Font(name="ＭＳ Ｐゴシック", size=12)
-
-        # 遍历所有单元格
-        for row in worksheet.iter_rows():
-            for cell in row:
-                cell.font = font
-                cell.value = unescape(cell.value)
-
-        # Save the workbook
-        workbook.save(ORDER_FOR_EXPRESS_PATH)
-
     def save_outbound_excel_for_express(self, outbound_orders):
+        express = self.express_combo.currentText()
         # 创建一个新的 Excel 工作簿，不显示 Excel 应用程序
         app = xw.App(visible=False)
         workbook = app.books.add()
@@ -460,7 +397,8 @@ class OutStorage(QWidget):
 
         # 定义所需的列标题
         headers = [
-            "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2",
+            "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2", 
+            # "住所3",
             "名前", "電話", "Comment1", "Comment2", "Text1", "口数",
             "発注番号", "Na", "YYU", "JYU", "JYU2", "TT"
         ]
@@ -485,25 +423,32 @@ class OutStorage(QWidget):
             current_date = datetime.date.today()
             formatted_date = current_date.strftime("%Y/%m/%d").replace("/0", "/")
             worksheet.cells(row_num, 1).value = formatted_date
-            # worksheet.cells(row_num, 1).value = order.get("D_Date", "")
             worksheet.cells(row_num, 2).value = order.get("Type", "")
             worksheet.cells(row_num, 3).value = order.get("OrderNo", "")
             worksheet.cells(row_num, 4).value = order.get("ZIP", "")
-            worksheet.cells(row_num, 5).value = order.get("Address", "")
-            worksheet.cells(row_num, 6).value = order.get("Address", "")
+            if (express == Express.KURONEKOYAMATO.value):
+                worksheet.cells(row_num, 5).value = order.get("Address", "")[:12]
+                worksheet.cells(row_num, 6).value = order.get("Address", "")[12:]
+                # worksheet.cells(row_num, 7).value = order.get("Address", "")[24:]
+            else:
+                worksheet.cells(row_num, 5).value = order.get("Address", "")
+                worksheet.cells(row_num, 6).value = ""
+                # worksheet.cells(row_num, 7).value = ""
             worksheet.cells(row_num, 7).value = order.get("Name", "")
             worksheet.cells(row_num, 8).value = order.get("TEL", "")
             worksheet.cells(row_num, 9).value = order.get("Text1", "")
             worksheet.cells(row_num, 10).value = order.get("Text2", "")
-            # worksheet.cells(row_num, 11).value = order.get("Text1", "")
             worksheet.cells(row_num, 11).value = "小包"
             worksheet.cells(row_num, 12).value = order.get("口数", "")
             worksheet.cells(row_num, 13).value = order.get("発注番号", "")
             worksheet.cells(row_num, 14).value = order.get("ShipperName", "")
             worksheet.cells(row_num, 15).value = order.get("ShipperZIP", "")
-            worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")
-            worksheet.cells(row_num, 17).value = ""
-            # worksheet.cells(row_num, 17).value = order.get("ShipperAddress", "")
+            if (express == Express.KURONEKOYAMATO.value):
+                worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")[0:12]
+                worksheet.cells(row_num, 17).value = order.get("ShipperAddress", "")[12:]
+            else:
+                worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")
+                worksheet.cells(row_num, 17).value = ""
             worksheet.cells(row_num, 18).value = order.get("ShipperTel", "")
 
         '''
