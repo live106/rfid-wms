@@ -204,7 +204,7 @@ class InStorage(QWidget):
             try:
                 time.sleep(1)
                 self.counter_updated.emit(len(self.epc_list))
-                self.inventory_button.setText(f"STOP[{(str(round(self.inventory_duration_ref[0])) + 's') if self.inventory_duration_ref[0] > 0 else ''}]")  # Add this line to set the text of the inventory_button to "结束盘点"
+                self.inventory_button.setText(f"STOP[{(str(round(self.inventory_duration_ref[0])) + 's') if self.inventory_duration_ref[0] > 0 else ''}]")
                 print(f"Counter updated: {len(self.epc_list)}, inventory_duration_ref: {self.inventory_duration_ref[0]}")
                 if not self.counter_thread.is_alive():
                     print("Counter thread terminated.")
@@ -220,7 +220,7 @@ class InStorage(QWidget):
         stop_async_inventory_event.clear()  # Unset the threading.Event object to resume the inventory process
         # self.inventory_button.setEnabled(False)
         self.inventory_button.disconnect()
-        self.inventory_button.setText(f"结束盘点")  # Add this line to set the text of the inventory_button to "结束盘点"
+        self.inventory_button.setText(f"STOP")
         self.inventory_button.clicked.connect(self.stopAsyncInventory)  # Add this line to set the stop_async_inventory_event value to True when the button is clicked        
         if not self.counter_thread.is_alive():
             self.counter_thread = threading.Thread(target=self.updateCounterThread)
