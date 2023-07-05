@@ -1,5 +1,8 @@
 import sys
 import os
+import traceback
+import logging
+from logging.handlers import RotatingFileHandler
 
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget, QLabel, QLineEdit, QPushButton, QDialog, QMessageBox, QDesktopWidget
 from PyQt5.QtCore import Qt, QSize
@@ -14,7 +17,7 @@ from products import Products
 from lic import get_mac_address
 from lic_encrypt import generate_license, generate_license_file
 from lic_decrypt import verify_license
-from config import DATA_PATH
+from config import DATA_PATH, LOG_PATH
 
 # import the resource module
 import icon_rc
@@ -236,12 +239,62 @@ def checkDataDir():
     else: # 如果文件夹已存在
         print(DATA_PATH, "文件夹已存在。") # 打印提示信息
 
+def excepthook(exc_type, exc_value, exc_traceback):
+    # 在这里处理异常
+    # 可以显示错误信息、记录日志等
+    
+    # 获取函数调用链信息
+    traceback_info = traceback.format_tb(exc_traceback)
+    traceback_str = ''.join(traceback_info)
+    
+    # 构造异常信息
+    error_message = f"异常类型: {exc_type}\n异常对象: {exc_value}\n回溯信息:\n{traceback_str}"
+    print('error_message: ', error_message)
+    
+    # 弹出错误对话框
+    QMessageBox.critical(None, "发生异常", error_message, QMessageBox.Ok)
+
+def redirect_stdout_to_logger(logger):
+    class StdoutLogger:
+        def __init__(self, logger):
+            self.logger = logger
+
+        def write(self, message):
+            if message != '\n':
+                self.logger.info(message.strip())
+
+        def flush(self):
+            pass
+
+    sys.stdout = StdoutLogger(logger)    
 
 if __name__ == '__main__':
     checkDataDir()
+
+    # 创建日志记录器
+    logger = logging.getLogger('print_logger')
+    logger.setLevel(logging.INFO)
+
+    # 创建RotatingFileHandler，设置日志文件路径、大小和保留文件数量
+    file_handler = RotatingFileHandler(LOG_PATH, maxBytes=1024*1024, backupCount=5)
+    file_handler.setLevel(logging.INFO)
+
+    # 创建格式化器，设置日志格式
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # 将文件处理程序添加到记录器
+    logger.addHandler(file_handler)
+
     # enable_hi_dpi() must be called before the instantiation of QApplication.
     qdarktheme.enable_hi_dpi()
     app = QApplication([])
+    # 设置全局异常处理钩子
+    sys.excepthook = excepthook
+
+    # 将print输出重定向到日志记录器
+    redirect_stdout_to_logger(logger)
+
     # Apply the complete dark theme to your Qt App.
     # qdarktheme.setup_theme()
     qdarktheme.setup_theme("auto")
