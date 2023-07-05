@@ -135,7 +135,7 @@ class Products(QWidget):
 
     def download_template(self):
         # export a template excel file with headers
-        file_name = QFileDialog.getSaveFileName(self, "Save Excel file", "", "Excel file (*.xlsx)") # get the file name from a save file dialog
+        file_name = QFileDialog.getSaveFileName(self, "Save Excel file", "ProductTemplate.xlsx", "Excel file (*.xlsx)") # get the file name from a save file dialog
         if file_name[0]:
             workbook = Workbook() # create a workbook
             sheet = workbook.active # get the active sheet

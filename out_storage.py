@@ -2,20 +2,21 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMessageB
 from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal, QObject
 from PyQt5 import QtGui
 import openpyxl
+from openpyxl.styles import Alignment, numbers, Font
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment, numbers
-from openpyxl.styles import Font
 import xlwings as xw
+import xlsxwriter
 import threading
 import time
 import datetime
 from html import unescape
 
 from auto_express import create_express_printer, Express
-from database import add_orders, get_orders, get_orders_by_order_no, get_valid_epc_barcode_counts, get_orders_by_order_nos, update_epcs, update_order
+from database import *
 import rfid_api
 from rfid_api import stop_async_inventory_event
 from config import ORDER_FOR_EXPRESS_PATH
+from string_utils import halfwidth_to_fullwidth
 
 class PrintThread(QThread):
     finished = pyqtSignal(bool)
@@ -36,12 +37,14 @@ class OrderWorker(QObject):
     finished = pyqtSignal()
     result = pyqtSignal(list)
 
-    def __init__(self, order_no):
+    def __init__(self, order_no_or_picking_no):
         super().__init__()
-        self.order_no = order_no
+        self.order_no_or_picking_no = order_no_or_picking_no
 
     def run(self):
-        result = get_orders_by_order_no(self.order_no)
+        result = get_orders_by_order_no(self.order_no_or_picking_no)
+        if not result:
+            result = get_orders_by_picking_no(self.order_no_or_picking_no)
         self.result.emit(result)
         self.finished.emit()
 
@@ -49,12 +52,12 @@ class OutboundWorker(QObject):
     finished = pyqtSignal()
     result = pyqtSignal(list)
 
-    def __init__(self, order_numbers):
+    def __init__(self, picking_nos):
         super().__init__()
-        self.order_numbers = order_numbers
+        self.picking_nos = picking_nos
 
     def run(self):
-        result = get_orders_by_order_nos(self.order_numbers)
+        result = get_orders_by_picking_nos(self.picking_nos)
         self.result.emit(result)
         self.finished.emit()
 
@@ -84,6 +87,9 @@ class OutStorage(QWidget):
         # self.rfid_thread.daemon = True
 
         self.current_order_match_data = []
+        self.all_match = False
+
+        self.default_shipper_data = get_shipper_data()
 
         self.initUI()
 
@@ -106,7 +112,7 @@ class OutStorage(QWidget):
 
         # Add the top row of buttons and input components
         self.order_input = QLineEdit()
-        self.order_input.setPlaceholderText('Please enter OrderNo')
+        self.order_input.setPlaceholderText('Please enter PickingNo or OrNO')
         self.order_input.setFont(QtGui.QFont("Arial", 16))
         self.order_input.setFocus(True)
         self.order_input.textChanged.connect(self.on_order_input_changed)
@@ -122,15 +128,10 @@ class OutStorage(QWidget):
         self.express_combo = QComboBox()
         self.express_combo.setPlaceholderText('Plese select express')
         self.express_combo.setFont(QtGui.QFont("Arial", 16))
-        # 添加枚举类成员值作为选项
-        for express in Express:
-            self.express_combo.addItem(express.value)
-        # 设置默认选中的枚举类成员
-        self.express_combo.setCurrentText(Express.SAGAWAEXP.value)
 
         self.outbound_button = QPushButton("Outbound")
         self.outbound_button.setFont(QtGui.QFont("Arial", 16))
-        self.outbound_button.setEnabled(False)
+        # self.outbound_button.setEnabled(False)
         self.outbound_button.clicked.connect(self.outbound)
 
         top_hbox = QHBoxLayout()
@@ -143,7 +144,7 @@ class OutStorage(QWidget):
         # Add the first table
         self.match_table = QTableWidget()
         self.match_table.setColumnCount(5)
-        self.match_table.setHorizontalHeaderLabels(["OrderNo", "JAN", "Qty", "CurrentQty", "Matching"])
+        self.match_table.setHorizontalHeaderLabels(["PickingNo", "JAN", "Qty", "CurrentQty", "Matching"])
         self.match_table.setFixedHeight(260)
         self.match_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
@@ -161,7 +162,7 @@ class OutStorage(QWidget):
         template_button.clicked.connect(self.download_template)
 
         self.order_table = QTableWidget()
-        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OutboundStatus', 'OrderNo', 'Express', 'ExpressNo', 'ExpressTime']
+        headers = ['Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'PickingNo', 'OrNO', 'OutboundStatus', 'Express', 'ExpressNo', 'ExpressTime']
         self.order_table.setColumnCount(len(headers))
         self.order_table.setHorizontalHeaderLabels(headers)
         self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -180,12 +181,22 @@ class OutStorage(QWidget):
         vbox.addWidget(self.order_table)
         self.setLayout(vbox)
 
+        self.update_express_options()
         self.reload_orders()
+
+    def update_express_options(self):
+        configs = get_all_express_configs()
+        self.express_combo.clear()
+        for config in configs:
+            self.express_combo.addItem(config['alias'])
 
     def showEvent(self, event):
         # Set focus to order_input when the UI is shown
+        self.order_input.setEnabled(True)
         self.order_input.setFocus()
-        event.accept()            
+        self.update_express_options()
+        self.default_shipper_data = get_shipper_data()
+        event.accept()   
 
     @pyqtSlot()
     def print_express(self):
@@ -195,19 +206,23 @@ class OutStorage(QWidget):
         self.order_thread.start()
         
     def on_print_finished(self, result):
-        order_no = self.current_order_match_data[0].get('OrderNo', None)
+        picking_no = self.current_order_match_data[0].get('PickingNo', None)
         if result:
             if len(self.current_order_match_data) > 0:
-                if order_no:
+                if picking_no:
                     current_date = datetime.date.today()
                     formatted_date = current_date.strftime("%Y/%m/%d")
-                    update_order(order_no, {'OutboundStatus': 'Done', 'ExpressTime': formatted_date})
-                    update_epcs(self.epc_list, {'order_no': order_no})
+                    update_order(picking_no, {'OutboundStatus': 'Done', 'Express': self.express_combo.currentText(), 'ExpressTime': formatted_date})
+                    update_epcs(self.epc_list, {'picking_no': picking_no})
                     self.reload_orders()
 
-            QMessageBox.information(self, "Success", f"Order: {order_no} Outbound Successful !")
+            self.order_input.clear()
+            self.counter.display(0)
+            QMessageBox.information(self, "Success", f"Order: {picking_no} Outbound Successful !")
         else:
-            QMessageBox.warning(self, "Warning", f"Order: {order_no} Outbound Failure, Please Retry !")
+            QMessageBox.warning(self, "Warning", f"Order: {picking_no} Outbound Failure, Please Retry !")
+        self.order_input.setEnabled(True)
+        self.order_input.setFocus()
 
     def closeEvent(self, event):
         if self.order_thread is not None:
@@ -217,14 +232,16 @@ class OutStorage(QWidget):
         
     def download_template(self):
         # Prompt the user to select a location to save the file
-        file_path, _ = QFileDialog.getSaveFileName(None, "Save Template", "", "Excel Files (*.xlsx)")
+        file_path, _ = QFileDialog.getSaveFileName(None, "Save Template", "OrderTemplate.xlsx", "Excel Files (*.xlsx)")
 
         # Create a new Excel workbook and add a worksheet
         workbook = openpyxl.Workbook()
         worksheet = workbook.active
 
         # Add the desired headers to the worksheet
-        headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo', 'Express']
+        # headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'PickingNo', 'Express']
+        headers = ['Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'PickingNo', 'OrNO']
+
         for i, header in enumerate(headers):
             cell = worksheet.cell(row=1, column=i+1)
             cell.value = header
@@ -244,17 +261,31 @@ class OutStorage(QWidget):
         headers = [cell.value for cell in worksheet[1]]
 
         # Compare the headers to the headers of the corresponding table in your UI
-        expected_headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'OrderNo', 'Express']
+        # expected_headers = ['Type', 'JAN', 'Expiration', 'ZIP', 'Address', 'Name', 'TEL', 'Text1', 'Text2', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'CustomerOrderID', 'Qty', 'PickingNo', 'Express']
+        expected_headers = ['Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'PickingNo', 'OrNO']
+
         if headers != expected_headers:
             QMessageBox.warning(None, "Error", "The headers in the selected file do not match the expected headers.")
             return
+        
+        # 需要转换为全角的列
+        full_width_headers = ['Address', 'Name', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'ShipperName', 'ShipperAddress']
+        required_headers = ['JAN', 'Qty', 'Address', 'TEL', 'PickingNo', 'OrNO']
 
         # Import the data from the worksheet into the database
         data = []
         for row in worksheet.iter_rows(min_row=2):
             item = {}
             for index, cell in enumerate(row):
-                item[headers[index]] = str(cell.value)
+                if expected_headers[index] in required_headers and not cell.value:
+                    QMessageBox.warning(None, "Error", f'{expected_headers[index]} can not be empty!')
+                    return
+                if expected_headers[index] in full_width_headers:
+                    item[headers[index]] = halfwidth_to_fullwidth(str(cell.value)) if cell.value else ''
+                else:
+                    item[headers[index]] = str(cell.value) if cell.value else ''
+                
+
             data.append(item)
         add_orders(data)
 
@@ -274,6 +305,7 @@ class OutStorage(QWidget):
 
     @pyqtSlot()
     def on_order_input_changed(self):
+        self.order_input.setEnabled(False)
         self.current_order_match_data.clear()
         order_no = self.order_input.text()
         if order_no:
@@ -292,9 +324,9 @@ class OutStorage(QWidget):
     def update_match_table(self, result):
         self.current_order_match_data = result
         self.match_table.setRowCount(len(self.current_order_match_data))
-        all_match = True
+        self.all_match = True
         for i, row in enumerate(result):
-            self.match_table.setItem(i, 0, QTableWidgetItem(row["OrderNo"]))
+            self.match_table.setItem(i, 0, QTableWidgetItem(row["PickingNo"]))
             self.match_table.setItem(i, 1, QTableWidgetItem(row["JAN"]))
             self.match_table.setItem(i, 2, QTableWidgetItem(str(row["Qty"])))
             self.match_table.setItem(i, 3, QTableWidgetItem(str(row.get('CurrentQty', 0))))
@@ -302,12 +334,15 @@ class OutStorage(QWidget):
             match = row["Qty"] == row.get('CurrentQty', 0)
             self.match_table.setItem(i, 4, QTableWidgetItem(str(match)))
             if not match:
-                all_match = False
-            express = row.get('Express', None)
-            if any(e.value == express for e in Express):
-                self.express_combo.setCurrentText(express)
+                self.all_match = False
+            if row.get('type', None) in ['Y', 'y']:
+                self.express_combo.setCurrentText(Express.KURONEKOYAMATO.value)
+            else:
+                self.express_combo.setCurrentText(Express.SAGAWAEXP.value)
 
-        self.outbound_button.setEnabled(all_match)
+        # self.outbound_button.setEnabled(self.all_match)
+        self.order_input.setEnabled(True)
+        self.order_input.setFocus()
 
     def startAsyncInventory(self):
         self.counter_updated.emit(0)
@@ -364,15 +399,24 @@ class OutStorage(QWidget):
             self.update_match_table(self.current_order_match_data)
 
     def outbound(self):
-        order_numbers = []
+        if not self.order_input.text():
+            return
+        if not self.express_combo.currentText():
+            QMessageBox.warning(self, "Warning", "Express not selected !")
+            return
+        if not self.all_match:
+            reply = QMessageBox.question(self, "Confirm", f"Quantity not match, confirm outbound ?", QMessageBox.Yes | QMessageBox.No)
+            if reply != QMessageBox.Yes:
+                return
+        picking_nos = []
         for row in range(self.match_table.rowCount()):
             order_number_item = self.match_table.item(row, 0)
             if order_number_item is not None:
-                order_numbers.append(order_number_item.text())
+                picking_nos.append(order_number_item.text())
 
-        if order_numbers:
+        if picking_nos:
             self.outbound_thread = QThread()
-            self.outbound_worker = OutboundWorker(order_numbers)
+            self.outbound_worker = OutboundWorker(picking_nos)
             self.outbound_worker.moveToThread(self.outbound_thread)
             self.outbound_thread.started.connect(self.outbound_worker.run)
             self.outbound_worker.finished.connect(self.outbound_thread.quit)
@@ -381,13 +425,32 @@ class OutStorage(QWidget):
             self.outbound_worker.result.connect(self.handle_outbound_result)            
             self.outbound_thread.start()
 
+        self.all_match = False
+
     def handle_outbound_result(self, outbound_orders):
         print('outbound_orders: ', outbound_orders)
-        self.save_outbound_excel_for_express(outbound_orders)
+        for order in outbound_orders:
+            if order['OutboundStatus'] == 'Done':
+                 reply = QMessageBox.question(self, "Confirm", f"Order {order['PickingNo']} outbounded already, outbound again ?", QMessageBox.Yes | QMessageBox.No)
+                 if reply == QMessageBox.Yes:
+                    break
+                 else:
+                    return
+        # self.save_outbound_excel_for_express(outbound_orders)
+        # self.save_outbound_excel_for_express0(outbound_orders)
+        self.save_outbound_excel_for_express1(outbound_orders)
         self.print_express()
 
-    def save_outbound_excel_for_express(self, outbound_orders):
-        express = self.express_combo.currentText()
+    def save_outbound_excel_for_express0(self, outbound_orders):
+        alias = self.express_combo.currentText()
+        config = get_express_config(alias)
+        if not config:
+            raise ValueError("no express config for alias: ", alias)
+        express_name = config['name']
+        default_shipper_zip = self.default_shipper_data['ShipperZIP']
+        default_shipper_name = self.default_shipper_data['ShipperName']
+        default_shipper_address = self.default_shipper_data['ShipperAddress']
+        default_shipper_tel = self.default_shipper_data['ShipperTel']
         # 创建一个新的 Excel 工作簿，不显示 Excel 应用程序
         app = xw.App(visible=False)
         workbook = app.books.add()
@@ -396,11 +459,16 @@ class OutStorage(QWidget):
         worksheet = workbook.sheets.active
 
         # 定义所需的列标题
+        # headers = [
+        #     "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2", 
+        #     # "住所3",
+        #     "名前", "電話", "Comment1", "Comment2", "Text1", "口数",
+        #     "発注番号", "Na", "YYU", "JYU", "JYU2", "TT"
+        # ]
         headers = [
             "出荷予定日", "送り状種類", "OrNO", "郵便番号", "住所1", "住所2", 
-            # "住所3",
-            "名前", "電話", "Comment1", "Comment2", "Text1", "口数",
-            "発注番号", "Na", "YYU", "JYU", "JYU2", "TT"
+            "名前", "電話", "Comment1", "Comment2", "Comment3", "Comment4", "口数",
+            "SName", "SAddress1", "SAddress2", "STel", "SZIP", "D_Time", "D_Date"
         ]
 
         # 添加列标题到工作表
@@ -423,33 +491,37 @@ class OutStorage(QWidget):
             current_date = datetime.date.today()
             formatted_date = current_date.strftime("%Y/%m/%d").replace("/0", "/")
             worksheet.cells(row_num, 1).value = formatted_date
-            worksheet.cells(row_num, 2).value = order.get("Type", "")
-            worksheet.cells(row_num, 3).value = order.get("OrderNo", "")
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.cells(row_num, 2).value = "7"
+            else:
+                # sagawa
+                worksheet.cells(row_num, 2).value = "0"
+            worksheet.cells(row_num, 3).value = order.get("OrNO", "")
             worksheet.cells(row_num, 4).value = order.get("ZIP", "")
-            if (express == Express.KURONEKOYAMATO.value):
-                worksheet.cells(row_num, 5).value = order.get("Address", "")[:12]
-                worksheet.cells(row_num, 6).value = order.get("Address", "")[12:]
-                # worksheet.cells(row_num, 7).value = order.get("Address", "")[24:]
+            if (express_name == Express.KURONEKOYAMATO.value):
+                worksheet.cells(row_num, 5).value = order.get("Address", "")[0:16]
+                worksheet.cells(row_num, 6).value = order.get("Address", "")[16:]
             else:
                 worksheet.cells(row_num, 5).value = order.get("Address", "")
                 worksheet.cells(row_num, 6).value = ""
-                # worksheet.cells(row_num, 7).value = ""
             worksheet.cells(row_num, 7).value = order.get("Name", "")
             worksheet.cells(row_num, 8).value = order.get("TEL", "")
-            worksheet.cells(row_num, 9).value = order.get("Text1", "")
-            worksheet.cells(row_num, 10).value = order.get("Text2", "")
-            worksheet.cells(row_num, 11).value = "小包"
-            worksheet.cells(row_num, 12).value = order.get("口数", "")
-            worksheet.cells(row_num, 13).value = order.get("発注番号", "")
-            worksheet.cells(row_num, 14).value = order.get("ShipperName", "")
-            worksheet.cells(row_num, 15).value = order.get("ShipperZIP", "")
-            if (express == Express.KURONEKOYAMATO.value):
-                worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")[0:12]
-                worksheet.cells(row_num, 17).value = order.get("ShipperAddress", "")[12:]
+            worksheet.cells(row_num, 9).value = order.get("Comment1", "")
+            worksheet.cells(row_num, 10).value = order.get("Comment2", "")
+            worksheet.cells(row_num, 11).value = order.get("Comment3", "")
+            worksheet.cells(row_num, 12).value = order.get("Comment4", "")
+            worksheet.cells(row_num, 13).value = "1"
+            worksheet.cells(row_num, 14).value = order.get("ShipperName", default_shipper_name)
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.cells(row_num, 15).value = order.get("ShipperAddress", default_shipper_address)[0:16]
+                worksheet.cells(row_num, 16).value = order.get("ShipperAddress", default_shipper_address)[16:]
             else:
-                worksheet.cells(row_num, 16).value = order.get("ShipperAddress", "")
-                worksheet.cells(row_num, 17).value = ""
-            worksheet.cells(row_num, 18).value = order.get("ShipperTel", "")
+                worksheet.cells(row_num, 15).value = order.get("ShipperAddress", default_shipper_address)
+                worksheet.cells(row_num, 16).value = ""
+            worksheet.cells(row_num, 17).value = order.get("ShipperTel", default_shipper_tel)
+            worksheet.cells(row_num, 18).value = order.get("ShipperZIP", default_shipper_zip)
+            worksheet.cells(row_num, 19).value = order.get("D_Time", "")
+            worksheet.cells(row_num, 20).value = order.get("D_Date", "")
 
         '''
         # 设置字体样式
@@ -469,4 +541,168 @@ class OutStorage(QWidget):
         workbook.close()
 
         # 关闭 Excel 应用程序
-        app.quit()        
+        app.quit()
+
+    def save_outbound_excel_for_express(self, outbound_orders):
+        alias = self.express_combo.currentText()
+        config = get_express_config(alias)
+        if not config:
+            raise ValueError("no express config for alias: ", alias)
+        express_name = config['name']
+        default_shipper_zip = self.default_shipper_data['ShipperZIP']
+        default_shipper_name = self.default_shipper_data['ShipperName']
+        default_shipper_address = self.default_shipper_data['ShipperAddress']
+        default_shipper_tel = self.default_shipper_data['ShipperTel']
+
+        # 创建一个新的工作簿
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+
+        headers = [
+            u"出荷予定日", u"送り状種類", u"OrNO", u"郵便番号", u"住所1", u"住所2",
+            u"名前", u"電話", "Comment1", "Comment2", "Comment3", "Comment4", u"口数",
+            "SName", "SAddress1", "SAddress2", "STel", "SZIP", "D_Time", "D_Date"
+        ]
+
+        # 添加列标题
+        for col_num, header in enumerate(headers, 1):
+            cell = worksheet.cell(row=1, column=col_num, value=header)
+            cell.alignment = Alignment(horizontal='center')
+            worksheet.column_dimensions[chr(col_num + 64)].auto_size = True
+
+        # 设置日期格式
+        date_format = "yyyy/m/d"
+        worksheet.column_dimensions['A'].number_format = date_format
+
+        # 填充订单数据
+        for row_num, order in enumerate(outbound_orders, 2):
+            current_date = datetime.date.today()
+            formatted_date = current_date.strftime("%Y/%m/%d").replace("/0", "/")
+            worksheet.cell(row=row_num, column=1, value=formatted_date)
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.cell(row=row_num, column=2, value="7")
+            else:
+                # sagawa
+                worksheet.cell(row=row_num, column=2, value="0")
+            worksheet.cell(row=row_num, column=3, value=order.get("OrNO", ""))
+            worksheet.cell(row=row_num, column=4, value=order.get("ZIP", ""))
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.cell(row=row_num, column=5, value=order.get("Address", "")[:16])
+                worksheet.cell(row=row_num, column=6, value=order.get("Address", "")[16:])
+            else:
+                worksheet.cell(row=row_num, column=5, value=order.get("Address", ""))
+                worksheet.cell(row=row_num, column=6, value="")
+            worksheet.cell(row=row_num, column=7, value=order.get("Name", ""))
+            worksheet.cell(row=row_num, column=8, value=order.get("TEL", ""))
+            worksheet.cell(row=row_num, column=9, value=order.get("Comment1", ""))
+            worksheet.cell(row=row_num, column=10, value=order.get("Comment2", ""))
+            worksheet.cell(row=row_num, column=11, value=order.get("Comment3", ""))
+            worksheet.cell(row=row_num, column=12, value=order.get("Comment4", ""))
+            worksheet.cell(row=row_num, column=13, value="1")
+            worksheet.cell(row=row_num, column=14, value=order.get("ShipperName", default_shipper_name))
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.cell(row=row_num, column=15, value=order.get("ShipperAddress", default_shipper_address)[0:16])
+                worksheet.cell(row=row_num, column=16, value=order.get("ShipperAddress", default_shipper_address)[16:])
+            else:
+                worksheet.cell(row=row_num, column=15, value=order.get("ShipperAddress", default_shipper_address))
+                worksheet.cell(row=row_num, column=16, value="")
+            worksheet.cell(row=row_num, column=17, value=order.get("ShipperTel", default_shipper_tel))
+            worksheet.cell(row=row_num, column=18, value=order.get("ShipperZIP", default_shipper_zip))
+            worksheet.cell(row=row_num, column=19, value=order.get("D_Time", ""))
+            worksheet.cell(row=row_num, column=20, value=order.get("D_Date", ""))
+
+        workbook.save(ORDER_FOR_EXPRESS_PATH)
+        workbook.close()
+
+    def save_outbound_excel_for_express1(self, outbound_orders):
+        outbound_orders = self.merge_outbound_orders(outbound_orders)
+        alias = self.express_combo.currentText()
+        config = get_express_config(alias)
+        if not config:
+            raise ValueError("no express config for alias: ", alias)
+        express_name = config['name']
+        default_shipper_zip = self.default_shipper_data['ShipperZIP']
+        default_shipper_name = self.default_shipper_data['ShipperName']
+        default_shipper_address = self.default_shipper_data['ShipperAddress']
+        default_shipper_tel = self.default_shipper_data['ShipperTel']
+
+        # 创建一个新的工作簿
+        workbook = xlsxwriter.Workbook(ORDER_FOR_EXPRESS_PATH)
+        worksheet = workbook.add_worksheet()
+
+        headers = [
+            u"出荷予定日", u"送り状種類", u"OrNO", u"郵便番号", u"住所1", u"住所2",
+            u"名前", u"電話", "Comment1", "Comment2", "Comment3", "Comment4", u"口数",
+            "SName", "SAddress1", "SAddress2", "STel", "SZIP", "D_Time", "D_Date"
+        ]
+
+        # 添加列标题
+        for col_num, header in enumerate(headers):
+            worksheet.write(0, col_num, header)
+            worksheet.set_column(col_num, col_num, len(header))
+
+        # 设置日期格式
+        date_format = workbook.add_format({'num_format': 'yyyy/m/d'})
+        worksheet.set_column('A:A', None, date_format)
+
+        # 填充订单数据
+        for row_num, order in enumerate(outbound_orders, 1):
+            current_date = datetime.date.today()
+            formatted_date = current_date.strftime("%Y/%m/%d").replace("/0", "/")
+            worksheet.write(row_num, 0, formatted_date)
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.write(row_num, 1, "7")
+            else:
+                worksheet.write(row_num, 1, "0")
+            worksheet.write(row_num, 2, order.get("OrNO", ""))
+            worksheet.write(row_num, 3, order.get("ZIP", ""))
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.write(row_num, 4, order.get("Address", "")[:16])
+                worksheet.write(row_num, 5, order.get("Address", "")[16:])
+            else:
+                worksheet.write(row_num, 4, order.get("Address", ""))
+                worksheet.write(row_num, 5, "")
+            worksheet.write(row_num, 6, order.get("Name", ""))
+            worksheet.write(row_num, 7, order.get("TEL", ""))
+            worksheet.write(row_num, 8, order.get("Comment1", ""))
+            worksheet.write(row_num, 9, order.get("Comment2", ""))
+            worksheet.write(row_num, 10, order.get("Comment3", ""))
+            worksheet.write(row_num, 11, order.get("Comment4", ""))
+            worksheet.write(row_num, 12, "1")
+            worksheet.write(row_num, 13, order.get("ShipperName", default_shipper_name))
+            if express_name == Express.KURONEKOYAMATO.value:
+                worksheet.write(row_num, 14, order.get("ShipperAddress", default_shipper_address)[0:16])
+                worksheet.write(row_num, 15, order.get("ShipperAddress", default_shipper_address)[16:])
+            else:
+                worksheet.write(row_num, 14, order.get("ShipperAddress", default_shipper_address))
+                worksheet.write(row_num, 15, "")
+            worksheet.write(row_num, 16, order.get("ShipperTel", default_shipper_tel))
+            worksheet.write(row_num, 17, order.get("ShipperZIP", default_shipper_zip))
+            worksheet.write(row_num, 18, order.get("D_Time", ""))
+            worksheet.write(row_num, 19, order.get("D_Date", ""))
+
+        workbook.close()
+
+    def merge_outbound_orders(self, outbound_orders):
+        merged_orders = {}
+        for order in outbound_orders:
+            picking_no = order['PickingNo']
+            if picking_no not in merged_orders:
+                merged_orders[picking_no] = order.copy()
+                merged_orders[picking_no]['Comment2'] = ''
+                merged_orders[picking_no]['Comment3'] = ''
+            jan = order.get('JAN')
+            if jan:
+                comment2 = merged_orders[picking_no]['Comment2']
+                comment3 = merged_orders[picking_no]['Comment3']
+                jan_count_comment2 = len(comment2.split(' ')) if comment2 else 0
+                jan_count_comment3 = len(comment3.split(' ')) if comment3 else 0
+                if jan_count_comment2 <= jan_count_comment3:
+                    merged_orders[picking_no]['Comment2'] = f"{comment2} {jan}"
+                else:
+                    merged_orders[picking_no]['Comment3'] = f"{comment3} {jan}"
+
+        merged_orders_list = list(merged_orders.values())
+        return merged_orders_list        
+
+

@@ -19,10 +19,10 @@ class Express(Enum):
     KURONEKOYAMATO = "yamato"
     SAGAWAEXP = "sagawa"
 
-def create_express_printer(name):
-    config = database.get_express_config(name)
+def create_express_printer(alias):
+    config = database.get_express_config(alias)
     if not config:
-        raise ValueError("no express config for name: ", name)
+        raise ValueError("no express config for alias: ", alias)
     username = config['username']
     password = config['password']
     username_field_name = config['username_field_name']
@@ -30,15 +30,17 @@ def create_express_printer(name):
     login_url = config['login_url']
     logged_in_element_class = config['logged_in_element_class']
     home_url = config['home_url']
+    download_path = config['download_path']
+    name = config['name']
     if name == Express.KURONEKOYAMATO.value:
         return ExpressPrinterK(username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url)
     elif name == Express.SAGAWAEXP.value:
-        return ExpressPrinterS(username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url)
+        return ExpressPrinterS(username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url, download_path)
     else:
-        raise ValueError("no express printer for name: ", name)
+        raise ValueError("no express printer for alias: " + alias + " and name: ", name)
 
 class ExpressPrinter(abc.ABC):
-    def __init__(self, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url):
+    def __init__(self, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url, download_path=None):
         self.options = webdriver.ChromeOptions()
         # set headless mode
         # self.options.add_argument("--headless")
@@ -62,7 +64,7 @@ class ExpressPrinter(abc.ABC):
 
         # 设置默认下载路径
         self.options.add_experimental_option("prefs", {  
-            "download.default_directory": DOWNLOAD_PATH, 
+            "download.default_directory": download_path if download_path else DOWNLOAD_PATH, 
             "download.prompt_for_download": False,  
             "download.directory_upgrade": True,
             "safebrowsing.enabled": True 
@@ -113,9 +115,9 @@ class ExpressPrinterK(ExpressPrinter):
                 select_element = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.ID, "torikomi_pattern")))
                 actions = ActionChains(self.driver)
                 actions.move_to_element(select_element).click().perform()    
-                option_element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.XPATH, "//option[text()='G09-1']")))
+                option_element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.XPATH, "//option[text()='GET']")))
                 option_element.click()
-                print('select 取込みパターン: G09-1')
+                print('select 取込みパターン: GET')
                 
                 element = self.driver.execute_script("return document.getElementById('filename');")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
@@ -143,7 +145,7 @@ class ExpressPrinterK(ExpressPrinter):
                 element.click()
                 print('click 発行開始')
 
-                time.sleep(10)
+                time.sleep(5)
 
                 # Switch to the iframe that contains the PDF
                 iframe = self.driver.find_element(By.XPATH, "//iframe[@class='fancybox-iframe']")
@@ -153,8 +155,10 @@ class ExpressPrinterK(ExpressPrinter):
 
                 self.driver.execute_script("window.print();")
 
+                time.sleep(1)
+
                 # Wait for the print dialog to appear
-                pyautogui.sleep(1)
+                pyautogui.sleep(2)
                 # Press the "Enter" key to confirm printing
                 pyautogui.press('enter')
 
@@ -237,12 +241,12 @@ class ExpressPrinterS(ExpressPrinter):
 
                 time.sleep(2)
 
-                option_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'GEE')]/parent::li")))
+                option_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'GET')]/parent::li")))
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", option_element)
                 actions = ActionChains(self.driver)
                 actions.move_to_element(option_element).click().perform()
                 # option_element.click()
-                print('select GEE')
+                print('select GET')
 
                 element = self.driver.execute_script("return document.getElementsByName('files')[0];")
                 self.driver.execute_script("arguments[0].style.display = 'block';", element)
@@ -308,7 +312,7 @@ class ExpressPrinterS(ExpressPrinter):
                     time.sleep(3)
                     self.driver.quit()
                     self.driver = webdriver.Chrome(options=self.options)
-                    print('Driver reinitialized.')                    
+                    print('Driver reinitialized.')
                 else:
                     print('Failed after 3 attempts.')
                     self.driver.quit()
