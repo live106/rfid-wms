@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QLineEdit, QComboBox, QHBoxLayout, QTableWidget, QFrame, QFileDialog, QTableWidgetItem, QLCDNumber, QHeaderView
-from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal, QObject, Qt
 from PyQt5 import QtGui
 import openpyxl
 from openpyxl.styles import Alignment, numbers, Font
@@ -133,7 +133,7 @@ class OutStorage(QWidget):
         self.express_combo.setPlaceholderText('Express')
         self.express_combo.setFont(QtGui.QFont("Arial", button_height))
 
-        self.outbound_button = QPushButton("Outbound")
+        self.outbound_button = QPushButton("OUTBOUND")
         self.outbound_button.setFont(QtGui.QFont("Arial", button_height))
         # self.outbound_button.setEnabled(False)
         self.outbound_button.clicked.connect(self.outbound)
@@ -164,10 +164,13 @@ class OutStorage(QWidget):
         template_button.clicked.connect(self.download_template)
 
         self.order_table = QTableWidget()
-        headers = ['Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'PickingNo', 'OrNO', 'OutboundStatus', 'Express', 'ExpressNo', 'ExpressTime']
+        # headers = ['Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'PickingNo', 'OrNO', 'OutboundStatus', 'Express', 'ExpressNo', 'ExpressTime']
+        headers = ['OutboundStatus', 'PickingNo', 'OrNO', 'Type', 'JAN', 'Expiration', 'Qty', 'ZIP', 'Address', 'Name', 'TEL', 'Comment1', 'Comment2', 'Comment3', 'Comment4', 'D_Date', 'D_Time', 'ShipperZIP', 'ShipperName', 'ShipperAddress', 'ShipperTel', 'Express', 'ExpressNo', 'ExpressTime']
         self.order_table.setColumnCount(len(headers))
         self.order_table.setHorizontalHeaderLabels(headers)
-        self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.order_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.order_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)        
 
         vbox = QVBoxLayout()
         # vbox.addWidget(self.label)
@@ -202,7 +205,7 @@ class OutStorage(QWidget):
 
     def showEvent(self, event):
         # Set focus to order_input when the UI is shown
-        self.order_input.setEnabled(True)
+        # self.order_input.setEnabled(True)
         self.order_input.setFocus()
         self.update_express_options()
         self.default_shipper_data = get_shipper_data()
@@ -236,7 +239,7 @@ class OutStorage(QWidget):
             QMessageBox.information(self, "Success", f"Order: {picking_no} Outbound Successful !")
         else:
             QMessageBox.warning(self, "Warning", f"Order: {picking_no} Outbound Failure, Please Retry !")
-        self.order_input.setEnabled(True)
+        # self.order_input.setEnabled(True)
         self.order_input.setFocus()
 
     def closeEvent(self, event):
@@ -311,16 +314,19 @@ class OutStorage(QWidget):
         orders = get_orders()
         self.order_table.setRowCount(len(orders))
         for i, order in enumerate(orders):
-            for j in range(self.order_table.columnCount()):  # Iterate over the column count
+            for j in range(self.order_table.columnCount()):
                 header = self.order_table.horizontalHeaderItem(j)
                 key = header.text()
                 value = order.get(key, '')
                 item = QTableWidgetItem(str(value))
                 self.order_table.setItem(i, j, item)
 
+                if key == 'OutboundStatus' and value == 'Done':
+                    item.setBackground(QtGui.QColor(0, 255, 0))
+
     @pyqtSlot()
     def on_order_input_changed(self):
-        self.order_input.setEnabled(False)
+        # self.order_input.setEnabled(False)
         self.current_order_match_data.clear()
         order_no = self.order_input.text()
         if order_no:
@@ -359,7 +365,7 @@ class OutStorage(QWidget):
                     self.express_combo.setCurrentText(config.get('alias', ''))
 
         # self.outbound_button.setEnabled(self.all_match)
-        self.order_input.setEnabled(True)
+        # self.order_input.setEnabled(True)
         self.order_input.setFocus()
 
     def startAsyncInventory(self):

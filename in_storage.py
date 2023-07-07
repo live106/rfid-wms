@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QComboBox, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QLCDNumber, QHBoxLayout, QHeaderView, QAbstractItemView
+from PyQt5.QtWidgets import QWidget, QComboBox, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QLCDNumber, QHBoxLayout, QHeaderView, QAbstractItemView, QLineEdit
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5 import QtGui
 import database
@@ -46,10 +46,13 @@ class InStorage(QWidget):
         button_height = 64
 
         # Create a barcode input widget
-        self.barcode_input = QComboBox(self)
+        self.barcode_input = QComboBox()
         self.barcode_input.setPlaceholderText("Please enter barcode")
         self.barcode_input.setFont(QtGui.QFont("Arial", button_height))
         self.barcode_input.setEditable(True)
+        line_edit = QLineEdit()
+        self.barcode_input.setLineEdit(line_edit)
+        line_edit.setFont(QtGui.QFont("Arial", button_height))        
         # Set focus to barcode_input
         self.barcode_input.setFocus(True)
         # self.barcode_input.setFixedHeight(60) # Add this line to set the height of the barcode input box to 60
@@ -57,10 +60,13 @@ class InStorage(QWidget):
         self.barcode_input.currentTextChanged.connect(self.updateProductName)
 
         # Create a product name input widget
-        self.product_name_input = QComboBox(self)
+        self.product_name_input = QComboBox()
         self.product_name_input.setPlaceholderText("Please enter product name")
         self.product_name_input.setFont(QtGui.QFont("Arial", button_height))
         self.product_name_input.setEditable(True)
+        line_edit = QLineEdit()
+        self.product_name_input.setLineEdit(line_edit)
+        line_edit.setFont(QtGui.QFont("Arial", button_height))  
         # self.product_name_input.setFixedHeight(60) # Add this line to set the height of the product name input box to 60
         self.product_name_input.currentIndexChanged.connect(self.updateBarcode)
         self.product_name_input.currentTextChanged.connect(self.updateBarcode)        
@@ -69,7 +75,7 @@ class InStorage(QWidget):
         self.counter = QLCDNumber()
 
         # Create a button to perform some action
-        self.inbound_button = QPushButton("Inbound")
+        self.inbound_button = QPushButton("INBOUND")
         self.inbound_button.setFont(QtGui.QFont("Arial", button_height))
         self.inbound_button.clicked.connect(self.addInbound)
         self.inbound_button.setEnabled(False)
@@ -98,7 +104,6 @@ class InStorage(QWidget):
         hbox.addWidget(self.product_name_input, 4)
         hbox.addWidget(self.inbound_button, 6)
         vbox.addLayout(hbox)
-
 
         vbox.addWidget(self.table)
         self.setLayout(vbox)
