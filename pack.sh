@@ -1,4 +1,4 @@
-# pyinstaller -n ge-rfid-wms -F -w -i icon.ico app.py
+pyinstaller -n ge-rfid-wms -F -w -i icon.ico app.py
 
 source_file="dist"
 zip_file="ge-rfid-wms.zip"
