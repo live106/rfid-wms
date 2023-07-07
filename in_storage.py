@@ -43,10 +43,12 @@ class InStorage(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setDefaultSectionSize(30)
 
+        button_height = 64
+
         # Create a barcode input widget
         self.barcode_input = QComboBox(self)
         self.barcode_input.setPlaceholderText("Please enter barcode")
-        self.barcode_input.setFont(QtGui.QFont("Arial", 16))
+        self.barcode_input.setFont(QtGui.QFont("Arial", button_height))
         self.barcode_input.setEditable(True)
         # Set focus to barcode_input
         self.barcode_input.setFocus(True)
@@ -57,7 +59,7 @@ class InStorage(QWidget):
         # Create a product name input widget
         self.product_name_input = QComboBox(self)
         self.product_name_input.setPlaceholderText("Please enter product name")
-        self.product_name_input.setFont(QtGui.QFont("Arial", 16))
+        self.product_name_input.setFont(QtGui.QFont("Arial", button_height))
         self.product_name_input.setEditable(True)
         # self.product_name_input.setFixedHeight(60) # Add this line to set the height of the product name input box to 60
         self.product_name_input.currentIndexChanged.connect(self.updateBarcode)
@@ -68,13 +70,13 @@ class InStorage(QWidget):
 
         # Create a button to perform some action
         self.inbound_button = QPushButton("Inbound")
-        self.inbound_button.setFont(QtGui.QFont("Arial", 16))
+        self.inbound_button.setFont(QtGui.QFont("Arial", button_height))
         self.inbound_button.clicked.connect(self.addInbound)
         self.inbound_button.setEnabled(False)
 
         # Create a button to start inventory
         self.inventory_button = QPushButton("START")
-        self.inventory_button.setFont(QtGui.QFont("Arial", 16))
+        self.inventory_button.setFont(QtGui.QFont("Arial", button_height))
         self.inventory_button.clicked.connect(self.startAsyncInventory)
         # self.inventory_button.clicked.connect(self.startSyncInventory)
 
@@ -85,19 +87,19 @@ class InStorage(QWidget):
         # Create a horizontal layout to hold the product name input box, the barcode input box, the counter, and the button
         hbox = QHBoxLayout()
 
-        # Add the inventory_button widget to the horizontal layout
-        hbox.addWidget(self.inventory_button, 1)
-
-        # Add the product name input widget and the barcode input widget to the horizontal layout
-        hbox.addWidget(self.barcode_input, 1)
-        hbox.addWidget(self.product_name_input, 1)
-
-        # Add the counter and the inbound_button to the horizontal layout
-        hbox.addWidget(self.counter, 1)
-        hbox.addWidget(self.inbound_button, 1)
+        hbox.addWidget(self.barcode_input, 4)
+        hbox.addWidget(self.inventory_button, 4)
+        hbox.addWidget(self.counter, 2)
 
         # Add the horizontal layout to the vertical layout
         vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.product_name_input, 4)
+        hbox.addWidget(self.inbound_button, 6)
+        vbox.addLayout(hbox)
+
+
         vbox.addWidget(self.table)
         self.setLayout(vbox)
 

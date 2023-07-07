@@ -17,17 +17,19 @@ import rfid_api
 from rfid_api import stop_async_inventory_event
 from config import ORDER_FOR_EXPRESS_PATH
 from string_utils import halfwidth_to_fullwidth
+from loading_screen import LoadingScreen
 
 class PrintThread(QThread):
     finished = pyqtSignal(bool)
 
-    def __init__(self, printer):
+    def __init__(self, printer, orders):
         super().__init__()
         self.printer = printer
+        self.orders = orders
         self._stop = False
 
     def run(self):
-        result = self.printer.print_express()
+        result = self.printer.print_express_with_form(self.orders)
         self.finished.emit(result)
 
     def stop(self):
@@ -110,36 +112,36 @@ class OutStorage(QWidget):
         self.setLayout(vbox)
         '''
 
+        button_height = 64
+
         # Add the top row of buttons and input components
         self.order_input = QLineEdit()
-        self.order_input.setPlaceholderText('Please enter PickingNo or OrNO')
-        self.order_input.setFont(QtGui.QFont("Arial", 16))
+        self.order_input.setPlaceholderText('PickingNo/OrNO')
+        self.order_input.setFont(QtGui.QFont("Arial", button_height))
         self.order_input.setFocus(True)
         self.order_input.textChanged.connect(self.on_order_input_changed)
 
         # Create a button to start inventory
         self.inventory_button = QPushButton("START")
-        self.inventory_button.setFont(QtGui.QFont("Arial", 16))
+        self.inventory_button.setFont(QtGui.QFont("Arial", button_height))
         self.inventory_button.clicked.connect(self.startAsyncInventory)
 
         # Create a text counter to show the number of characters in the product name input box
         self.counter = QLCDNumber()
 
         self.express_combo = QComboBox()
-        self.express_combo.setPlaceholderText('Plese select express')
-        self.express_combo.setFont(QtGui.QFont("Arial", 16))
+        self.express_combo.setPlaceholderText('Express')
+        self.express_combo.setFont(QtGui.QFont("Arial", button_height))
 
         self.outbound_button = QPushButton("Outbound")
-        self.outbound_button.setFont(QtGui.QFont("Arial", 16))
+        self.outbound_button.setFont(QtGui.QFont("Arial", button_height))
         # self.outbound_button.setEnabled(False)
         self.outbound_button.clicked.connect(self.outbound)
 
         top_hbox = QHBoxLayout()
-        top_hbox.addWidget(self.order_input, 1)
-        top_hbox.addWidget(self.inventory_button, 1)
-        top_hbox.addWidget(self.counter, 1)
-        top_hbox.addWidget(self.express_combo, 1)
-        top_hbox.addWidget(self.outbound_button, 1)
+        top_hbox.addWidget(self.order_input, 4)
+        top_hbox.addWidget(self.inventory_button, 4)
+        top_hbox.addWidget(self.counter, 2)
 
         # Add the first table
         self.match_table = QTableWidget()
@@ -170,6 +172,12 @@ class OutStorage(QWidget):
         vbox = QVBoxLayout()
         # vbox.addWidget(self.label)
         vbox.addLayout(top_hbox)
+
+        top_hbox = QHBoxLayout()
+        top_hbox.addWidget(self.express_combo, 4)
+        top_hbox.addWidget(self.outbound_button, 6)
+        vbox.addLayout(top_hbox)
+        
         vbox.addWidget(self.match_table)
         vbox.addWidget(separator)
 
@@ -183,6 +191,8 @@ class OutStorage(QWidget):
 
         self.update_express_options()
         self.reload_orders()
+
+        self.loading_screen = LoadingScreen()
 
     def update_express_options(self):
         configs = get_all_express_configs()
@@ -199,11 +209,16 @@ class OutStorage(QWidget):
         event.accept()   
 
     @pyqtSlot()
-    def print_express(self):
+    def print_express(self, orders):
         printer = create_express_printer(self.express_combo.currentText())
-        self.order_thread = PrintThread(printer)
+        self.order_thread = PrintThread(printer, orders)
         self.order_thread.finished.connect(self.on_print_finished)
+        self.order_thread.printer.update_loading_text.connect(self.update_loading_text)
         self.order_thread.start()
+
+    def update_loading_text(self, text):
+        self.loading_screen.update_loading_text(text)
+        self.setEnabled(not text)
         
     def on_print_finished(self, result):
         picking_no = self.current_order_match_data[0].get('PickingNo', None)
@@ -335,10 +350,13 @@ class OutStorage(QWidget):
             self.match_table.setItem(i, 4, QTableWidgetItem(str(match)))
             if not match:
                 self.all_match = False
-            if row.get('type', None) in ['Y', 'y']:
-                self.express_combo.setCurrentText(Express.KURONEKOYAMATO.value)
-            else:
-                self.express_combo.setCurrentText(Express.SAGAWAEXP.value)
+            if i == 0:
+                alias = row.get('Type', None)
+                if alias:
+                    self.express_combo.setCurrentText(alias)
+                else:
+                    config = get_express_config_by_name(Express.SAGAWAEXP.value)
+                    self.express_combo.setCurrentText(config.get('alias', ''))
 
         # self.outbound_button.setEnabled(self.all_match)
         self.order_input.setEnabled(True)
@@ -425,10 +443,7 @@ class OutStorage(QWidget):
             self.outbound_worker.result.connect(self.handle_outbound_result)            
             self.outbound_thread.start()
 
-        self.all_match = False
-
     def handle_outbound_result(self, outbound_orders):
-        print('outbound_orders: ', outbound_orders)
         for order in outbound_orders:
             if order['OutboundStatus'] == 'Done':
                  reply = QMessageBox.question(self, "Confirm", f"Order {order['PickingNo']} outbounded already, outbound again ?", QMessageBox.Yes | QMessageBox.No)
@@ -436,10 +451,13 @@ class OutStorage(QWidget):
                     break
                  else:
                     return
+        outbound_orders = self.merge_outbound_orders(outbound_orders)
+        print('outbound_orders: ', outbound_orders)
         # self.save_outbound_excel_for_express(outbound_orders)
         # self.save_outbound_excel_for_express0(outbound_orders)
-        self.save_outbound_excel_for_express1(outbound_orders)
-        self.print_express()
+        # self.save_outbound_excel_for_express1(outbound_orders)
+        self.print_express(outbound_orders)
+
 
     def save_outbound_excel_for_express0(self, outbound_orders):
         alias = self.express_combo.currentText()
@@ -615,7 +633,6 @@ class OutStorage(QWidget):
         workbook.close()
 
     def save_outbound_excel_for_express1(self, outbound_orders):
-        outbound_orders = self.merge_outbound_orders(outbound_orders)
         alias = self.express_combo.currentText()
         config = get_express_config(alias)
         if not config:
