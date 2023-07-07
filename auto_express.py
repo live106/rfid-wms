@@ -8,12 +8,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.alert import Alert
 from enum import Enum
 import database
 import time
 import pyautogui
 import os
 import datetime
+import base64
+import win32api
+import win32print
 
 from config import ORDER_FOR_EXPRESS_PATH, DOWNLOAD_PATH
 
@@ -67,18 +71,23 @@ class ExpressPrinter(QObject):
 
         self.options = webdriver.ChromeOptions()
         # set headless mode
-        self.options.add_argument("--headless")
+        # self.options.add_argument("--headless")
 
         # prevent the driver from automatically closing the browser for debugging
-        # self.options.add_experimental_option("detach", True)
+        self.options.add_experimental_option("detach", True)
 
         self.options.add_argument('--enable-print-browser')
+        
         '''
         The --kiosk-printing option is used in the provided code to enable printing in kiosk mode. 
         Kiosk mode is a full-screen mode that is commonly used in public places such as airports, museums, and libraries to provide access to information or services. 
         In kiosk mode, the browser is locked down and only allows access to a specific website or application.
         '''
-        # self.options.add_argument("--kiosk-printing")
+        self.options.add_argument("--kiosk-printing")
+        # headless模式下无法设置此项
+        # self.options.add_argument("--print-to-pdf")
+
+        # self.options.add_argument('--disable-print-preview')
         # options.add_argument("--start-maximized")
 
         self.options.add_argument("--disable-gpu")  # 禁用GPU加速
@@ -91,13 +100,18 @@ class ExpressPrinter(QObject):
             "download.default_directory": self.download_path, 
             "download.prompt_for_download": False,  
             "download.directory_upgrade": True,
-            "safebrowsing.enabled": True 
+            "safebrowsing.enabled": True,
+            # 'printing.print_preview_sticky_settings.appState': '{"recentDestinations": [{"id": "Save as PDF", "origin": "local", "account": ""}], "selectedDestinationId": "Save as PDF", "version": 2}',
+            'savefile.default_directory': self.download_path,
         })
 
         self.driver = webdriver.Chrome(options=self.options)
 
-    def input_text(self, element_id, text, message):
-        element = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, element_id)))
+    def input_text(self, element_value, text, message, attr_key='id'):
+        if attr_key == 'id':
+            element = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, element_value)))
+        else:
+            element = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.XPATH, f'//input[@{attr_key}="{element_value}"]')))
         element.send_keys(text)
         # self.driver.execute_script("arguments[0].value = arguments[1]", element, text)
         self.update_loading_text.emit(f'{message}: {text}')
@@ -210,6 +224,10 @@ class ExpressPrinter(QObject):
     def print_message(self, text):
         print(text)
         self.update_loading_text.emit(text)
+
+    def print_pdf(self, file_path):
+        default_printer = win32print.GetDefaultPrinter()
+        win32api.ShellExecute(0, 'print', file_path, f'"{default_printer}"', '.', 0)
         
 class ExpressPrinterK(ExpressPrinter):
     def print_express_with_file(self):
@@ -310,7 +328,160 @@ class ExpressPrinterK(ExpressPrinter):
         return True
 
     def print_express_with_form(self, orders):
-        pass
+        self.print_message('Start Printing ...')
+        current_time = datetime.datetime.now()
+        if not self.logged_in or (current_time - self.login_time).total_seconds() > 1 * 3600:
+            try:
+                self.driver.get(self.login_url)
+                username_field = self.driver.find_element(By.NAME, self.username_field_name)
+                password_field = self.driver.find_element(By.NAME, self.password_field_name)
+                username_field.send_keys(self.username)
+                password_field.send_keys(self.password)
+                password_field.send_keys(Keys.RETURN)
+
+                # 等待登录完成
+                WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, 'ybmHeaderUserName')))
+            
+                self.logged_in = True
+                self.login_time = datetime.datetime.now()
+                self.print_message('Logged in successfully !')
+
+                element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//a[@onclick=\"javascript:ybmCommonJs.useService('06', '2');\"]")))
+                element.click()
+                self.print_message('送り状発行システムB2クラウド')
+
+                element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, 'single_issue_reg')))
+                self.driver.execute_script("window.scrollBy(0, 200)")
+                element.click()
+                self.print_message('1件ずつ発行')
+
+            except Exception as e:
+                self.logged_in = False
+                # self.driver.quit()
+                self.update_loading_text.emit('')
+                raise(e)
+            
+        for order in orders:
+            try:
+                time.sleep(2)
+                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//input[@data-key="shipment.service_type" and @value="7"]')))
+                self.driver.execute_script("arguments[0].click();", element)
+                self.print_message('ネコポス')
+
+                '''
+                (お届け先)
+                shipment_number お客様管理番号
+                consignee_telephone 電話番号
+                consignee_zip_code 郵便番号
+                - shipment_titleconsignee_address1 都道府県
+                consignee_address02 市区郡町村
+                consignee_address03 町・番地
+                consignee_address04 マンション・ビル名
+                shipment.consignee_department1 data-key 会社・部門１
+                shipment.consignee_name data-key 名称
+                '''
+                '''
+                (ご依頼主)
+                shipper_telephone 電話番号
+                shipper_zip_code 郵便番号
+                shipment_titleshipper_address1 都道府県
+                shipper_address2 市区郡町村
+                shipper_address3 町・番地
+                shipment.shipper_address4 data-key マンション・ビル名
+                shipment.shipper_name data-key 名称
+                '''
+                '''
+                (品名)
+                item_name1 品名1 picking_no
+                item_name2 品名2 text1
+                shipment_titlehandling_information1 荷扱い１ order_no
+                shipment_titlehandling_information2 荷扱い２ text2
+                note 記事（メモ） text3
+                '''
+
+                ###
+                # self.input_text('shipment_number', order.get("OrNO", ""), 'お客様管理番号')
+
+                ###
+                self.input_text('consignee_telephone', order.get("TEL", ""), '電話番号')
+                self.input_text('consignee_zip_code', order.get("ZIP", ""), '郵便番号')
+                # self.input_text('shipment_titleconsignee_address1', order.get("Address", "")[:16], '都道府県')
+                self.input_text('consignee_address02', order.get("Address", "")[:12], '市区郡町村')
+                self.input_text('consignee_address03', order.get("Address", "")[12:28], '町・番地')
+                self.input_text('consignee_address04', order.get("Address", "")[28:], 'マンション・ビル名')
+                self.input_text('shipment.consignee_name', order.get("Name", "")[:16], '名称', 'data-key')
+
+                ###
+                self.input_text('shipper_telephone', order.get("ShipperTel", ""), '電話番号')
+                self.input_text('shipper_zip_code', order.get("ShipperZIP", ""), '郵便番号')
+                # self.input_text('shipment_titleshipper_address1', order.get("ShipperAddress", "")[0:16], '都道府県')
+                self.input_text('shipper_address2', order.get("ShipperAddress", "")[:12], '市区郡町村')
+                self.input_text('shipper_address3', order.get("ShipperAddress", "")[12:28], '町・番地')
+                self.input_text('shipment.shipper_address4', order.get("ShipperAddress", "")[28:], 'マンション・ビル名', 'data-key')
+
+                self.input_text('shipment.shipper_name', order.get("ShipperName", "")[:16], '名称', 'data-key')
+
+                ###
+                self.input_text('item_name1', order.get("PickingNo", ""), '品名１')
+                self.input_text('item_name2', order.get("Comment1", ""), '品名２')
+                self.input_text('shipment_titlehandling_information1', order.get("OrNO", ""), '荷扱い１')
+                self.input_text('shipment_titlehandling_information2', order.get("Comment2", ""), '荷扱い２')
+                self.input_text('note', order.get("Comment3", ""), '記事（メモ）')
+
+                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'confirm_issue_btn')))
+                element.click()
+                self.print_message('印刷内容の確認へ')
+
+                try:
+                    alert = WebDriverWait(self.driver, 2).until(EC.alert_is_present())
+                    alert.accept()
+                    self.print_message('確認')
+                except Exception as e:
+                    pass
+
+                i = 0
+                while i < 3: 
+                    i += 1
+                    try:
+                        element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'start_print')))
+                        element.click()
+                        self.print_message('発行開始')
+                    except:
+                        time.sleep(1)
+                        continue
+
+                element = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, "//iframe[@class='fancybox-iframe']")))
+                self.driver.switch_to.frame(element)
+
+                # element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.XPATH, '//*[@id="download"]')))
+                # element.click()
+
+                self.print_message('Printing')
+
+                # 非headless模式
+                self.driver.execute_script("window.print();")
+
+                '''
+                # headless 模式打印为pdf
+                time.sleep(5)
+                pdf_data = self.driver.execute_cdp_cmd('Page.printToPDF', {})
+                with open('output.pdf', 'wb') as file:
+                    file.write(base64.b64decode(pdf_data['data']))
+                self.print_pdf('output.pdf')
+                '''
+
+                self.print_message(f'Print Finished: {order.get("OrNO", "")}')
+
+                time.sleep(3)
+                self.driver.get(self.home_url)
+
+            except Exception as e:
+                self.logged_in = False
+                # self.driver.quit()
+                self.update_loading_text.emit('')
+                raise(e)
+        self.update_loading_text.emit('')
+        return True
 
 class ExpressPrinterS(ExpressPrinter):
     def __init__(self, username, password, username_field_name, password_field_name, login_url, logged_in_element_class, home_url, download_path=None):
@@ -454,39 +625,41 @@ class ExpressPrinterS(ExpressPrinter):
         return True
 
     def print_express_with_form(self, orders):
-        self.print_message('start printing ...')
+        self.print_message('Start Printing ...')
         current_time = datetime.datetime.now()
-        if not self.logged_in or (current_time - self.login_time).total_seconds() > 12 * 3600:
-            self.driver.get(self.login_url)
-            # try:
-            #     logged_in_element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.CLASS_NAME, self.logged_in_element_class)))
-            #     self.print_message('Logged in already!')
-            # except:
-            element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//label[@for='tab02']")))
-            element.click()
+        if not self.logged_in or (current_time - self.login_time).total_seconds() > 1 * 3600:
+            try:
+                self.driver.get(self.login_url)
+                element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//label[@for='tab02']")))
+                element.click()
 
-            username_field = self.driver.find_element(By.NAME, self.username_field_name)
-            password_field = self.driver.find_element(By.NAME, self.password_field_name)
-            username_field.send_keys(self.username)
-            password_field.send_keys(self.password)
-            password_field.send_keys(Keys.RETURN)
+                username_field = self.driver.find_element(By.NAME, self.username_field_name)
+                password_field = self.driver.find_element(By.NAME, self.password_field_name)
+                username_field.send_keys(self.username)
+                password_field.send_keys(self.password)
+                password_field.send_keys(Keys.RETURN)
 
-            self.logged_in = True
-            self.login_time = datetime.datetime.now()
-            self.print_message('Logged in successfully !')
-        
-            # 等待页面跳转完成
-            WebDriverWait(self.driver, 10).until(EC.url_changes(self.driver.current_url))
+                # 等待页面跳转完成
+                # WebDriverWait(self.driver, 10).until(EC.url_changes(self.driver.current_url))
+                self.logged_in = True
+                self.login_time = datetime.datetime.now()
+                self.print_message('Logged in successfully !')
 
-            element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='okjSksei']")))
-            element.click()
-            self.print_message('送り状作成')
+                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='okjSksei']")))
+                element.click()
+                self.print_message('送り状作成')
 
-            element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '飛脚宅配便')]/parent::button")))
-            element.click()
-            self.print_message('飛脚宅配便')
+                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '飛脚宅配便')]/parent::button")))
+                element.click()
+                self.print_message('飛脚宅配便')
 
-            WebDriverWait(self.driver, 10).until(EC.url_changes(self.driver.current_url))
+                WebDriverWait(self.driver, 10).until(EC.url_changes(self.driver.current_url))
+            except Exception as e:
+                self.logged_in = False
+                self.driver.quit()
+                self.update_loading_text.emit('')
+                raise(e)
+
         for order in orders:
             try:
                 ###
@@ -502,7 +675,7 @@ class ExpressPrinterS(ExpressPrinter):
                 self.input_text('input-hinNm-2', order.get("Comment2", ""), '品名２')
                 self.input_text('input-hinNm-3', order.get("Comment3", ""), '品名３')
                 self.input_text('input-hinNm-4', order.get("Comment4", ""), '品名４')
-                self.input_text('input-hinNm-5', order.get("Comment4", ""), '品名５')
+                self.input_text('input-hinNm-5', order.get("PickingNo", ""), '品名５')
 
                 ###
                 element = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.open-control-button-to-right:not([style*="display: none"])')))
@@ -571,9 +744,10 @@ class ExpressPrinterS(ExpressPrinter):
                 # element.click()
                 # self.print_message('click OK')
 
-                self.print_message(f'download finished: {order.get("OrNO", "")[:16]} {str(downloaded_files)}')
+                self.print_message(f'download finished: {order.get("OrNO", "")} {str(downloaded_files)}')
             
             except Exception as e:
+                self.logged_in = False
                 self.driver.quit()
                 self.update_loading_text.emit('')
                 raise(e)
