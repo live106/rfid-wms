@@ -165,7 +165,7 @@ class MainWindow(QWidget):
         # self.centerOnScreen() 
         self.showMaximized()
         # Set the window to full screen
-        # self.showFullScreen()
+        self.showFullScreen()
 
     # Change the subpage according to the menu item text
     def changePage(self, current, previous):
@@ -185,7 +185,9 @@ class MainWindow(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            event.ignore()      
+            reply = QMessageBox.question(None, 'Confirmation', 'Are you sure you want to exit?', QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                sys.exit()
 
     # def centerOnScreen(self):
     #     # Get the screen resolution
