@@ -250,11 +250,12 @@ def excepthook(exc_type, exc_value, exc_traceback):
     traceback_str = ''.join(traceback_info)
     
     # 构造异常信息
-    error_message = f"异常类型: {exc_type}\n异常对象: {exc_value}\n回溯信息:\n{traceback_str}"
+    # error_message = f"异常类型: {exc_type}\n异常对象: {exc_value}\n回溯信息:\n{traceback_str}"
+    error_message = f"异常类型: {exc_type}"
     print('error_message: ', error_message)
     
     # 弹出错误对话框
-    QMessageBox.critical(None, "发生异常", error_message, QMessageBox.Ok)
+    # QMessageBox.critical(None, "发生异常", f"异常类型: {exc_type}", QMessageBox.Ok)
 
 def redirect_stdout_to_logger(logger):
     class StdoutLogger:

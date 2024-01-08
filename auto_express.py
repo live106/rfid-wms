@@ -228,7 +228,20 @@ class ExpressPrinter(QObject):
     def print_pdf(self, file_path):
         default_printer = win32print.GetDefaultPrinter()
         win32api.ShellExecute(0, 'print', file_path, f'"{default_printer}"', '.', 0)
-        
+
+    def retry_function(self, func, retry_times, message):
+        exception_count = 0
+        exception = ""
+        while exception_count < retry_times:
+            try:
+                func()
+                break  # 执行成功，退出循环
+            except Exception as e:
+                exception = e
+                exception_count += 1
+        else:
+            raise Exception(f"{message} failed after {retry_times} attempts", str(exception))
+
 class ExpressPrinterK(ExpressPrinter):
     def print_express_with_file(self):
         for i in range(3):
@@ -346,27 +359,32 @@ class ExpressPrinterK(ExpressPrinter):
                 self.login_time = datetime.datetime.now()
                 self.print_message('Logged in successfully !')
 
-                element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//a[@onclick=\"javascript:ybmCommonJs.useService('06', '2');\"]")))
-                element.click()
-                self.print_message('送り状発行システムB2クラウド')
+                msg = '送り状発行システムB2クラウド'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//a[@onclick=\"javascript:ybmCommonJs.useService('06', '2');\"]"))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
-                element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, 'single_issue_reg')))
-                self.driver.execute_script("window.scrollBy(0, 200)")
-                element.click()
-                self.print_message('1件ずつ発行')
+                msg = '1件ずつ発行'
+                self.retry_function(lambda: (
+                    self.driver.execute_script("window.scrollBy(0, 200)"),
+                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.ID, 'single_issue_reg'))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
             except Exception as e:
                 self.logged_in = False
-                # self.driver.quit()
+                self.driver.quit()
                 self.update_loading_text.emit('')
                 raise(e)
             
         for order in orders:
             try:
-                time.sleep(2)
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//input[@data-key="shipment.service_type" and @value="7"]')))
-                self.driver.execute_script("arguments[0].click();", element)
-                self.print_message('ネコポス')
+                msg = 'ネコポス'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//input[@data-key="shipment.service_type" and @value="7"]'))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
                 '''
                 (お届け先)
@@ -403,7 +421,11 @@ class ExpressPrinterK(ExpressPrinter):
                 # self.input_text('shipment_number', order.get("OrNO", ""), 'お客様管理番号')
 
                 ###
-                self.input_text('consignee_telephone', order.get("TEL", ""), '電話番号')
+                msg = '電話番号'
+                self.retry_function(lambda: (
+                    self.input_text('consignee_telephone', order.get("TEL", ""), '電話番号'),
+                ), 5, msg)
+                
                 self.input_text('consignee_zip_code', order.get("ZIP", ""), '郵便番号')
                 # self.input_text('shipment_titleconsignee_address1', order.get("Address", "")[:16], '都道府県')
                 self.input_text('consignee_address02', order.get("Address", "")[:12], '市区郡町村')
@@ -428,30 +450,32 @@ class ExpressPrinterK(ExpressPrinter):
                 self.input_text('shipment_titlehandling_information2', order.get("Comment2", ""), '荷扱い２')
                 self.input_text('note', order.get("Comment3", ""), '記事（メモ）')
 
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'confirm_issue_btn')))
-                element.click()
-                self.print_message('印刷内容の確認へ')
+                msg = '印刷内容の確認へ'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'confirm_issue_btn'))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
                 try:
-                    alert = WebDriverWait(self.driver, 2).until(EC.alert_is_present())
-                    alert.accept()
-                    self.print_message('確認')
+                    msg = '確認'
+                    self.retry_function(lambda: (
+                        WebDriverWait(self.driver, 2).until(EC.alert_is_present()).accept(),
+                        self.print_message(msg)
+                    ), 5, msg)
                 except Exception as e:
                     pass
 
-                i = 0
-                while i < 3: 
-                    i += 1
-                    try:
-                        element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'start_print')))
-                        element.click()
-                        self.print_message('発行開始')
-                    except:
-                        time.sleep(1)
-                        continue
+                msg = '発行開始'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, 'start_print'))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
-                element = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, "//iframe[@class='fancybox-iframe']")))
-                self.driver.switch_to.frame(element)
+                msg = 'Preview PDF'
+                self.retry_function(lambda: (
+                    self.driver.switch_to.frame(WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, "//iframe[@class='fancybox-iframe']")))),
+                    self.print_message(msg)
+                ), 5, msg)                
 
                 # element = WebDriverWait(self.driver, 2).until(EC.presence_of_element_located((By.XPATH, '//*[@id="download"]')))
                 # element.click()
@@ -477,7 +501,7 @@ class ExpressPrinterK(ExpressPrinter):
 
             except Exception as e:
                 self.logged_in = False
-                # self.driver.quit()
+                self.driver.quit()
                 self.update_loading_text.emit('')
                 raise(e)
         self.update_loading_text.emit('')
@@ -645,15 +669,18 @@ class ExpressPrinterS(ExpressPrinter):
                 self.login_time = datetime.datetime.now()
                 self.print_message('Logged in successfully !')
 
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='okjSksei']")))
-                element.click()
-                self.print_message('送り状作成')
+                msg = '送り状作成'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='okjSksei']"))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '飛脚宅配便')]/parent::button")))
-                element.click()
-                self.print_message('飛脚宅配便')
+                msg = '飛脚宅配便'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '飛脚宅配便')]/parent::button"))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
-                WebDriverWait(self.driver, 10).until(EC.url_changes(self.driver.current_url))
             except Exception as e:
                 self.logged_in = False
                 self.driver.quit()
@@ -663,7 +690,11 @@ class ExpressPrinterS(ExpressPrinter):
         for order in orders:
             try:
                 ###
-                self.input_text('input-otdkSkTel', order.get("TEL", ""), '電話番号')
+                msg = '電話番号'
+                self.retry_function(lambda: (
+                    self.input_text('input-otdkSkTel', order.get("TEL", ""), '電話番号'),
+                ), 5, msg)
+
                 self.input_text('input-otdkSkYbn', order.get("ZIP", ""), '郵便番号')
                 self.input_text('input-otdkSkJsy1', order.get("Address", "")[:16], '住所１')
                 self.input_text('input-otdkSkJsy2', order.get("Address", "")[16:32], '住所２')
@@ -678,19 +709,24 @@ class ExpressPrinterS(ExpressPrinter):
                 self.input_text('input-hinNm-5', order.get("PickingNo", ""), '品名５')
 
                 ###
-                element = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.open-control-button-to-right:not([style*="display: none"])')))
-                self.driver.execute_script("arguments[0].click();", element)
-                self.print_message('ご依頼主')
 
-                element = WebDriverWait(self.driver, 5).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.el-select[data-vv-as="印字指定"]'))
-                )
-                element.click()
-                self.print_message('印字指定')
+                msg = 'ご依頼主'
+                self.retry_function(lambda: (
+                    self.driver.execute_script("arguments[0].click();", WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.open-control-button-to-right:not([style*="display: none"])')))),
+                    self.print_message(msg)
+                ), 5, msg)
 
-                option_element = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '荷送人を印字する')]/parent::li")))
-                option_element.click()
-                self.print_message('荷送人を印字する')
+                msg = '印字指定'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.el-select[data-vv-as="印字指定"]'))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
+
+                msg = '荷送人を印字する'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '荷送人を印字する')]/parent::li"))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
                 self.input_text('input-irainusiTel', order.get("ShipperTel", ""), '電話番号')
                 self.input_text('input-irainusiYubin', order.get("ShipperZIP", ""), '郵便番号')
@@ -706,11 +742,11 @@ class ExpressPrinterS(ExpressPrinter):
 
                 d_time = self.convert_d_time(order.get("D_Time", ""))
                 if d_time:
-                    element = WebDriverWait(self.driver, 5).until(
-                        EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.el-select[data-vv-as="時間帯指定"]'))
-                    )
-                    self.driver.execute_script("arguments[0].click();", element)
-                    self.print_message('時間帯指定')
+                    msg = '時間帯指定'
+                    self.retry_function(lambda: (
+                        self.driver.execute_script("arguments[0].click();", WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.el-select[data-vv-as="時間帯指定"]')))),
+                        self.print_message(msg)
+                    ), 5, msg)
 
                     option_element = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, f"//span[(text()='{d_time}')]/parent::li")))
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", option_element)
@@ -727,24 +763,28 @@ class ExpressPrinterS(ExpressPrinter):
                 ActionChains(self.driver).move_to_element(body).send_keys(Keys.ESCAPE).perform()
                 self.print_message('ESC')
                 ActionChains(self.driver).move_to_element(body).send_keys(Keys.F12).perform()
-                self.print_message('printing ...')
+                self.print_message('Printing ...')
 
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'f12')]")))
-                element.click()
-                self.print_message('downloading ...')
+                msg = 'Downloading ...'
+                self.retry_function(lambda: (
+                    WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'f12')]"))).click(),
+                    self.print_message(msg)
+                ), 5, msg)
 
                 time.sleep(3)
                 downloaded_files = self.check_download_finish()
 
-                element = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'el-message-box__headerbtn')]")))
-                self.driver.execute_script("arguments[0].click();", element)
-                self.print_message('close tip')
+                msg = 'Close tip'
+                self.retry_function(lambda: (
+                    self.driver.execute_script("arguments[0].click();", WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'el-message-box__headerbtn')]")))),
+                    self.print_message(msg)
+                ), 5, msg)                
 
                 # element = WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'OK')]/parent::button")))
                 # element.click()
                 # self.print_message('click OK')
 
-                self.print_message(f'download finished: {order.get("OrNO", "")} {str(downloaded_files)}')
+                self.print_message(f'Download finished: {order.get("OrNO", "")} {str(downloaded_files)}')
             
             except Exception as e:
                 self.logged_in = False
